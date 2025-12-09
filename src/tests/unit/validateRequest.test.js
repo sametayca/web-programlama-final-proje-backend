@@ -1,8 +1,10 @@
+// Mock express-validator before requiring validateRequest
+jest.mock('express-validator', () => ({
+  validationResult: jest.fn()
+}));
+
 const validateRequest = require('../../middleware/validateRequest');
 const { validationResult } = require('express-validator');
-
-// Mock express-validator
-jest.mock('express-validator');
 
 describe('validateRequest Middleware', () => {
   let mockReq;

@@ -9,10 +9,10 @@ process.env.JWT_REFRESH_EXPIRES_IN = '7d';
 
 // Set test database configuration
 process.env.DB_HOST = process.env.DB_HOST || 'localhost';
-process.env.DB_PORT = process.env.DB_PORT || '3307';
-process.env.DB_NAME = process.env.DB_NAME || 'campus_db_test';
-process.env.DB_USER = process.env.DB_USER || 'root';
-process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'mysql_root_password';
+process.env.DB_PORT = process.env.DB_PORT || '5432';
+process.env.DB_NAME = process.env.DB_NAME || 'web_programlama_final_proje_test';
+process.env.DB_USER = process.env.DB_USER || 'postgres';
+process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'postgres';
 
 // Increase timeout for database operations
 jest.setTimeout(30000);
@@ -42,8 +42,12 @@ beforeAll(async () => {
     }
   } catch (error) {
     console.error('❌ Test database connection failed:', error.message);
-    console.error('💡 Make sure test database exists and MySQL is running');
-    // Continue anyway - some tests might still work
+    console.error('💡 To fix this:');
+    console.error('   1. Start Docker Desktop');
+    console.error('   2. Run: docker-compose up -d postgres');
+    console.error('   3. Run: npm run test:setup');
+    console.error('   4. Or install PostgreSQL locally and create test database');
+    // Continue anyway - some tests might still work without database
   }
 });
 

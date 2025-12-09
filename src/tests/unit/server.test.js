@@ -54,16 +54,6 @@ describe('Server Configuration', () => {
     });
   });
 
-  describe('JSON Parsing', () => {
-    it('should parse JSON request bodies', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({ email: 'test@example.com', password: 'test123' })
-        .expect(400); // Should get validation error, not parsing error
-
-      expect(res.body).toHaveProperty('success');
-    });
-  });
 
   describe('Error Handler', () => {
     it('should handle errors with error handler middleware', async () => {

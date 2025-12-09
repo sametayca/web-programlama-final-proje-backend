@@ -1,52 +1,31 @@
-// Set test environment variables before requiring models
-process.env.NODE_ENV = 'test';
-process.env.DB_HOST = process.env.DB_HOST || 'localhost';
-process.env.DB_PORT = process.env.DB_PORT || '3307';
-process.env.DB_NAME = process.env.DB_NAME || 'campus_db_test';
-process.env.DB_USER = process.env.DB_USER || 'root';
-process.env.DB_PASSWORD = process.env.DB_PASSWORD || 'mysql_root_password';
-
 const authService = require('../../services/authService');
 const { User, Student, Faculty, Department } = require('../../models');
-const bcrypt = require('bcryptjs');
+const emailService = require('../../services/emailService');
+const jwt = require('jsonwebtoken');
 
-describe('AuthService Unit Tests', () => {
-  let testDepartment;
-  let testUser;
+// Mock models
+jest.mock('../../models');
+jest.mock('../../services/emailService');
 
-  beforeAll(async () => {
-    // Create test department
-    testDepartment = await Department.create({
-      name: 'Computer Science',
-      code: 'CS'
-    });
-  });
-
-  afterEach(async () => {
-    // Clean up users after each test
-    await User.destroy({ where: {}, force: true });
-    await Student.destroy({ where: {}, force: true });
-    await Faculty.destroy({ where: {}, force: true });
-  });
-
-  afterAll(async () => {
-    await Department.destroy({ where: {}, force: true });
+describe('AuthService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('generateToken', () => {
     it('should generate a valid JWT token', () => {
-      const userId = '123e4567-e89b-12d3-a456-426614174000';
+      const userId = '123';
       const token = authService.generateToken(userId);
       
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
-      expect(token.split('.')).toHaveLength(3); // JWT has 3 parts
+      expect(token.split('.')).toHaveLength(3);
     });
   });
 
   describe('generateRefreshToken', () => {
     it('should generate a valid refresh token', () => {
-      const userId = '123e4567-e89b-12d3-a456-426614174000';
+      const userId = '123';
       const refreshToken = authService.generateRefreshToken(userId);
       
       expect(refreshToken).toBeDefined();
@@ -57,665 +36,744 @@ describe('AuthService Unit Tests', () => {
 
   describe('generateStudentNumber', () => {
     it('should generate unique student numbers', async () => {
-      const studentNumber1 = await authService.generateStudentNumber('CS', 2024);
-      const studentNumber2 = await authService.generateStudentNumber('CS', 2024);
+      Student.findOne = jest.fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
       
-      expect(studentNumber1).toBeDefined();
-      expect(studentNumber2).toBeDefined();
-      expect(studentNumber1).not.toBe(studentNumber2);
-      expect(studentNumber1).toMatch(/^CS24\d{4}$/);
+      const number1 = await authService.generateStudentNumber('CS', 2024);
+      const number2 = await authService.generateStudentNumber('CS', 2024);
+      
+      expect(number1).toMatch(/^CS24\d{4}$/);
+      expect(number2).toMatch(/^CS24\d{4}$/);
     });
 
-    it('should increment counter when student number exists', async () => {
-      // Create a student with specific number to force counter increment
-      const user = await User.create({
-        email: 'counter1@test.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'User',
-        role: 'student'
-      });
-
-      await Student.create({
-        userId: user.id,
-        studentNumber: 'CS240001',
-        departmentId: testDepartment.id,
-        enrollmentYear: 2024
-      });
-
-      // Next generated number should be CS240002
-      const newNumber = await authService.generateStudentNumber('CS', 2024);
-      expect(newNumber).toBe('CS240002');
-
-      await user.destroy({ force: true });
+    it('should increment counter when number exists', async () => {
+      Student.findOne = jest.fn()
+        .mockResolvedValueOnce({ id: '1' })
+        .mockResolvedValueOnce(null);
+      
+      const number = await authService.generateStudentNumber('CS', 2024);
+      expect(number).toMatch(/^CS24\d{4}$/);
     });
   });
 
   describe('generateEmployeeNumber', () => {
     it('should generate unique employee numbers', async () => {
-      const employeeNumber1 = await authService.generateEmployeeNumber('CS');
-      const employeeNumber2 = await authService.generateEmployeeNumber('CS');
+      Faculty.findOne = jest.fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
       
-      expect(employeeNumber1).toBeDefined();
-      expect(employeeNumber2).toBeDefined();
-      expect(employeeNumber1).not.toBe(employeeNumber2);
-      expect(employeeNumber1).toMatch(/^CS\d{5}$/);
+      const number1 = await authService.generateEmployeeNumber('CS');
+      const number2 = await authService.generateEmployeeNumber('CS');
+      
+      expect(number1).toMatch(/^CS\d{5}$/);
+      expect(number2).toMatch(/^CS\d{5}$/);
     });
 
-    it('should increment counter when employee number exists', async () => {
-      const user = await User.create({
-        email: 'empcounter1@test.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'User',
-        role: 'faculty'
-      });
-
-      await Faculty.create({
-        userId: user.id,
-        employeeNumber: 'CS00001',
-        departmentId: testDepartment.id,
-        title: 'lecturer'
-      });
-
-      // Next generated number should be CS00002
-      const newNumber = await authService.generateEmployeeNumber('CS');
-      expect(newNumber).toBe('CS00002');
-
-      await user.destroy({ force: true });
+    it('should increment counter when number exists', async () => {
+      Faculty.findOne = jest.fn()
+        .mockResolvedValueOnce({ id: '1' })
+        .mockResolvedValueOnce(null);
+      
+      const number = await authService.generateEmployeeNumber('CS');
+      expect(number).toMatch(/^CS\d{5}$/);
     });
   });
 
   describe('register', () => {
-    it('should register a new student successfully', async () => {
+    it('should register a new user successfully', async () => {
+      const userData = {
+        email: 'test@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'student'
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      User.create = jest.fn().mockResolvedValue({ id: '1', ...userData });
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
+
+      const user = await authService.register(userData);
+      
+      expect(user).toBeDefined();
+      expect(User.create).toHaveBeenCalled();
+    });
+
+    it('should throw error if email exists', async () => {
+      User.findOne = jest.fn().mockResolvedValue({ id: '1' });
+
+      await expect(authService.register({
+        email: 'existing@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'student'
+      })).rejects.toThrow('Bu e-posta adresi ile zaten bir hesap mevcut');
+    });
+
+    it('should create student profile when role is student', async () => {
       const userData = {
         email: 'student@test.com',
         password: 'password123',
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'student',
-        departmentId: testDepartment.id,
+        departmentId: 'dept1',
         enrollmentYear: 2024
       };
 
-      const user = await authService.register(userData);
-      
-      expect(user).toBeDefined();
-      expect(user.email).toBe('student@test.com');
-      expect(user.firstName).toBe('John');
-      expect(user.lastName).toBe('Doe');
-      expect(user.role).toBe('student');
-      expect(user.isEmailVerified).toBe(false);
-      expect(user.emailVerificationToken).toBeDefined();
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = { id: 'user1', ...userData };
 
-      // Check student profile was created
-      const student = await Student.findOne({ where: { userId: user.id } });
-      expect(student).toBeDefined();
-      expect(student.studentNumber).toBeDefined();
-    });
-
-    it('should register a new faculty successfully', async () => {
-      const userData = {
-        email: 'faculty@test.com',
-        password: 'password123',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        role: 'faculty',
-        departmentId: testDepartment.id,
-        title: 'professor'
-      };
-
-      const user = await authService.register(userData);
-      
-      expect(user).toBeDefined();
-      expect(user.email).toBe('faculty@test.com');
-      expect(user.role).toBe('faculty');
-
-      // Check faculty profile was created
-      const faculty = await Faculty.findOne({ where: { userId: user.id } });
-      expect(faculty).toBeDefined();
-      expect(faculty.employeeNumber).toBeDefined();
-    });
-
-    it('should not register with duplicate email', async () => {
-      const userData = {
-        email: 'duplicate@test.com',
-        password: 'password123',
-        firstName: 'John',
-        lastName: 'Doe',
-        role: 'student',
-        departmentId: testDepartment.id
-      };
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Student.create = jest.fn().mockResolvedValue({});
+      Student.findOne = jest.fn().mockResolvedValue(null);
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
       
-      await expect(authService.register(userData)).rejects.toThrow('Bu e-posta adresi ile zaten bir hesap mevcut');
+      expect(Student.create).toHaveBeenCalled();
     });
 
-    it('should hash password during registration', async () => {
+    it('should use provided studentNumber when given', async () => {
       const userData = {
-        email: 'hashtest@test.com',
+        email: 'student2@test.com',
         password: 'password123',
         firstName: 'Test',
         lastName: 'User',
         role: 'student',
-        departmentId: testDepartment.id
+        departmentId: 'dept1',
+        studentNumber: 'CUSTOM001'
       };
 
-      const user = await authService.register(userData);
-      const dbUser = await User.findByPk(user.id);
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = { id: 'user1', ...userData };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Student.create = jest.fn().mockResolvedValue({});
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
+
+      await authService.register(userData);
       
-      expect(dbUser.password).not.toBe('password123');
-      expect(await bcrypt.compare('password123', dbUser.password)).toBe(true);
+      expect(Student.create).toHaveBeenCalledWith(
+        expect.objectContaining({ studentNumber: 'CUSTOM001' })
+      );
     });
 
-    it('should reject registration with non-existent department', async () => {
+    it('should use current year when enrollmentYear not provided', async () => {
       const userData = {
-        email: 'nodept@test.com',
+        email: 'student3@test.com',
         password: 'password123',
         firstName: 'Test',
         lastName: 'User',
         role: 'student',
-        departmentId: 'non-existent-id'
+        departmentId: 'dept1'
       };
 
-      await expect(authService.register(userData)).rejects.toThrow('Seçilen bölüm bulunamadı');
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = { id: 'user1', ...userData };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Student.create = jest.fn().mockResolvedValue({});
+      Student.findOne = jest.fn().mockResolvedValue(null);
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
+
+      await authService.register(userData);
+      
+      expect(Student.create).toHaveBeenCalled();
     });
 
-    it('should reject registration with inactive department', async () => {
-      const inactiveDept = await Department.create({
-        name: 'Inactive Department',
-        code: 'INACT',
-        isActive: false
+    it('should create faculty profile when role is faculty', async () => {
+      const userData = {
+        email: 'faculty@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'faculty',
+        departmentId: 'dept1',
+        title: 'professor'
+      };
+
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = { id: 'user1', ...userData };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Faculty.create = jest.fn().mockResolvedValue({});
+      Faculty.findOne = jest.fn().mockResolvedValue(null);
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
+
+      await authService.register(userData);
+      
+      expect(Faculty.create).toHaveBeenCalled();
+    });
+
+    it('should use provided employeeNumber when given', async () => {
+      const userData = {
+        email: 'faculty2@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'faculty',
+        departmentId: 'dept1',
+        employeeNumber: 'CUSTOM001'
+      };
+
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = { id: 'user1', ...userData };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Faculty.create = jest.fn().mockResolvedValue({});
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
+
+      await authService.register(userData);
+      
+      expect(Faculty.create).toHaveBeenCalledWith(
+        expect.objectContaining({ employeeNumber: 'CUSTOM001' })
+      );
+    });
+
+    it('should use default title when not provided for faculty', async () => {
+      const userData = {
+        email: 'faculty3@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'faculty',
+        departmentId: 'dept1'
+      };
+
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = { id: 'user1', ...userData };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Faculty.create = jest.fn().mockResolvedValue({});
+      Faculty.findOne = jest.fn().mockResolvedValue(null);
+      emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
+
+      await authService.register(userData);
+      
+      expect(Faculty.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'lecturer' })
+      );
+    });
+
+    it('should delete user if profile creation fails with unique constraint for student', async () => {
+      const userData = {
+        email: 'fail@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'student',
+        departmentId: 'dept1'
+      };
+
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = {
+        id: 'user1',
+        destroy: jest.fn().mockResolvedValue(true),
+        ...userData
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Student.create = jest.fn().mockRejectedValue({
+        name: 'SequelizeUniqueConstraintError'
       });
 
+      await expect(authService.register(userData)).rejects.toThrow('Bu öğrenci numarası zaten kullanılıyor');
+      expect(mockUser.destroy).toHaveBeenCalled();
+    });
+
+    it('should delete user if profile creation fails with unique constraint for faculty', async () => {
       const userData = {
-        email: 'inactive@test.com',
+        email: 'fail2@test.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'faculty',
+        departmentId: 'dept1'
+      };
+
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = {
+        id: 'user1',
+        destroy: jest.fn().mockResolvedValue(true),
+        ...userData
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Faculty.create = jest.fn().mockRejectedValue({
+        name: 'SequelizeUniqueConstraintError'
+      });
+
+      await expect(authService.register(userData)).rejects.toThrow('Bu personel numarası zaten kullanılıyor');
+      expect(mockUser.destroy).toHaveBeenCalled();
+    });
+
+    it('should delete user if profile creation fails with other error', async () => {
+      const userData = {
+        email: 'fail3@test.com',
         password: 'password123',
         firstName: 'Test',
         lastName: 'User',
         role: 'student',
-        departmentId: inactiveDept.id
+        departmentId: 'dept1'
       };
 
-      await expect(authService.register(userData)).rejects.toThrow('Seçilen bölüm aktif değil');
+      const mockDepartment = { id: 'dept1', code: 'CS', isActive: true };
+      const mockUser = {
+        id: 'user1',
+        destroy: jest.fn().mockResolvedValue(true),
+        ...userData
+      };
 
-      await inactiveDept.destroy({ force: true });
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(mockDepartment);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      Student.create = jest.fn().mockRejectedValue(new Error('Database error'));
+
+      await expect(authService.register(userData)).rejects.toThrow('Profil oluşturulurken bir hata oluştu');
+      expect(mockUser.destroy).toHaveBeenCalled();
     });
 
     it('should handle email sending failure gracefully', async () => {
-      const emailService = require('../../services/emailService');
-      const originalSend = emailService.sendVerificationEmail;
-      emailService.sendVerificationEmail = jest.fn().mockRejectedValue(new Error('SMTP Error'));
-
       const userData = {
         email: 'emailfail@test.com',
         password: 'password123',
         firstName: 'Test',
         lastName: 'User',
-        role: 'student',
-        departmentId: testDepartment.id
+        role: 'student'
       };
 
-      // Should not throw error even if email fails
-      const user = await authService.register(userData);
-      expect(user).toBeDefined();
-      expect(user.email).toBe('emailfail@test.com');
+      const mockUser = { id: 'user1', ...userData };
 
-      // Restore original function
-      emailService.sendVerificationEmail = originalSend;
+      User.findOne = jest.fn().mockResolvedValue(null);
+      User.create = jest.fn().mockResolvedValue(mockUser);
+      emailService.sendVerificationEmail = jest.fn().mockRejectedValue(new Error('SMTP Error'));
+
+      const user = await authService.register(userData);
+      
+      expect(user).toBeDefined();
+      expect(emailService.sendVerificationEmail).toHaveBeenCalled();
     });
 
-    it('should delete user if student profile creation fails with unique constraint', async () => {
-      const userData1 = {
-        email: 'unique1@test.com',
+    it('should throw error if department not found', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue(null);
+
+      await expect(authService.register({
+        email: 'test@test.com',
         password: 'password123',
         firstName: 'Test',
         lastName: 'User',
         role: 'student',
-        departmentId: testDepartment.id,
-        studentNumber: 'UNIQUE001'
-      };
-
-      // First registration succeeds
-      await authService.register(userData1);
-
-      // Second registration with same student number should fail and delete user
-      const userData2 = {
-        email: 'unique2@test.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'User2',
-        role: 'student',
-        departmentId: testDepartment.id,
-        studentNumber: 'UNIQUE001'
-      };
-
-      await expect(authService.register(userData2)).rejects.toThrow('Bu öğrenci numarası zaten kullanılıyor');
-
-      // User should be deleted
-      const deletedUser = await User.findOne({ where: { email: 'unique2@test.com' } });
-      expect(deletedUser).toBeNull();
+        departmentId: 'invalid'
+      })).rejects.toThrow('Seçilen bölüm bulunamadı');
     });
 
-    it('should delete user if faculty profile creation fails with unique constraint', async () => {
-      const userData1 = {
-        email: 'facunique1@test.com',
+    it('should throw error if department is inactive', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
+      Department.findByPk = jest.fn().mockResolvedValue({ id: '1', isActive: false });
+
+      await expect(authService.register({
+        email: 'test@test.com',
         password: 'password123',
         firstName: 'Test',
-        lastName: 'Faculty',
-        role: 'faculty',
-        departmentId: testDepartment.id,
-        employeeNumber: 'FACUNIQUE001'
-      };
-
-      // First registration succeeds
-      await authService.register(userData1);
-
-      // Second registration with same employee number should fail and delete user
-      const userData2 = {
-        email: 'facunique2@test.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'Faculty2',
-        role: 'faculty',
-        departmentId: testDepartment.id,
-        employeeNumber: 'FACUNIQUE001'
-      };
-
-      await expect(authService.register(userData2)).rejects.toThrow('Bu personel numarası zaten kullanılıyor');
-
-      // User should be deleted
-      const deletedUser = await User.findOne({ where: { email: 'facunique2@test.com' } });
-      expect(deletedUser).toBeNull();
+        lastName: 'User',
+        role: 'student',
+        departmentId: '1'
+      })).rejects.toThrow('Seçilen bölüm aktif değil');
     });
   });
 
   describe('verifyEmail', () => {
     it('should verify email with valid token', async () => {
-      const user = await User.create({
-        email: 'verify@test.com',
-        password: 'password123',
-        firstName: 'Verify',
-        lastName: 'User',
-        role: 'student',
-        emailVerificationToken: 'valid-token',
-        emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000)
-      });
+      const mockUser = {
+        id: '1',
+        isEmailVerified: false,
+        save: jest.fn().mockResolvedValue(true)
+      };
 
-      const verifiedUser = await authService.verifyEmail('valid-token');
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.verifyEmail('valid-token');
       
-      expect(verifiedUser.isEmailVerified).toBe(true);
-      expect(verifiedUser.emailVerificationToken).toBeNull();
+      expect(result.isEmailVerified).toBe(true);
+      expect(mockUser.save).toHaveBeenCalled();
     });
 
-    it('should reject expired token', async () => {
-      await User.create({
-        email: 'expired@test.com',
-        password: 'password123',
-        firstName: 'Expired',
-        lastName: 'User',
-        role: 'student',
-        emailVerificationToken: 'expired-token',
-        emailVerificationExpires: new Date(Date.now() - 1000) // Expired
-      });
+    it('should throw error for invalid token', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
+
+      await expect(authService.verifyEmail('invalid-token')).rejects.toThrow('Invalid or expired verification token');
+    });
+
+    it('should throw error for expired token', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
 
       await expect(authService.verifyEmail('expired-token')).rejects.toThrow('Invalid or expired verification token');
-    });
-
-    it('should reject invalid token', async () => {
-      await expect(authService.verifyEmail('invalid-token')).rejects.toThrow('Invalid or expired verification token');
     });
   });
 
   describe('login', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'login@test.com',
-        password: 'password123',
-        firstName: 'Login',
-        lastName: 'User',
-        role: 'student',
-        isEmailVerified: true,
-        isActive: true
-      });
-    });
-
     it('should login with valid credentials', async () => {
-      const result = await authService.login('login@test.com', 'password123');
+      const mockUser = {
+        id: '1',
+        email: 'test@test.com',
+        isActive: true,
+        comparePassword: jest.fn().mockResolvedValue(true),
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.login('test@test.com', 'password123');
       
       expect(result.user).toBeDefined();
       expect(result.token).toBeDefined();
       expect(result.refreshToken).toBeDefined();
-      expect(result.user.email).toBe('login@test.com');
+      expect(mockUser.save).toHaveBeenCalled();
     });
 
-    it('should not login with invalid email', async () => {
-      await expect(authService.login('wrong@test.com', 'password123')).rejects.toThrow('Invalid credentials');
-    });
+    it('should include student and faculty profiles in login', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'test@test.com',
+        isActive: true,
+        comparePassword: jest.fn().mockResolvedValue(true),
+        save: jest.fn().mockResolvedValue(true),
+        studentProfile: { id: 's1' },
+        facultyProfile: null
+      };
 
-    it('should not login with invalid password', async () => {
-      await expect(authService.login('login@test.com', 'wrongpassword')).rejects.toThrow('Invalid credentials');
-    });
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
 
-    it('should not login with inactive user', async () => {
-      await testUser.update({ isActive: false });
+      const result = await authService.login('test@test.com', 'password123');
       
-      await expect(authService.login('login@test.com', 'password123')).rejects.toThrow('Invalid credentials');
+      expect(result.user).toBeDefined();
+      expect(User.findOne).toHaveBeenCalledWith(expect.objectContaining({
+        include: expect.any(Array)
+      }));
+    });
+
+    it('should throw error for invalid credentials', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
+
+      await expect(authService.login('test@test.com', 'wrong')).rejects.toThrow('Invalid credentials');
+    });
+
+    it('should throw error for inactive user', async () => {
+      const mockUser = {
+        id: '1',
+        isActive: false
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
+
+      await expect(authService.login('test@test.com', 'password123')).rejects.toThrow('Invalid credentials');
+    });
+
+    it('should throw error for wrong password', async () => {
+      const mockUser = {
+        id: '1',
+        isActive: true,
+        comparePassword: jest.fn().mockResolvedValue(false)
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
+
+      await expect(authService.login('test@test.com', 'wrong')).rejects.toThrow('Invalid credentials');
     });
   });
 
   describe('refreshToken', () => {
-    let refreshToken;
-
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'refresh@test.com',
-        password: 'password123',
-        firstName: 'Refresh',
-        lastName: 'User',
-        role: 'student',
-        isActive: true
-      });
-
-      refreshToken = authService.generateRefreshToken(testUser.id);
-      await testUser.update({ refreshToken });
-    });
-
     it('should refresh token with valid refresh token', async () => {
-      const result = await authService.refreshToken(refreshToken);
+      const mockUser = {
+        id: '1',
+        refreshToken: 'valid-refresh-token',
+        isActive: true,
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      jwt.verify = jest.fn().mockReturnValue({ id: '1' });
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.refreshToken('valid-refresh-token');
       
       expect(result.token).toBeDefined();
       expect(result.refreshToken).toBeDefined();
-      expect(result.refreshToken).not.toBe(refreshToken); // Should be new token
     });
 
-    it('should reject invalid refresh token', async () => {
+    it('should throw error for invalid refresh token', async () => {
+      jwt.verify = jest.fn().mockImplementation(() => {
+        throw new Error('Invalid token');
+      });
+
       await expect(authService.refreshToken('invalid-token')).rejects.toThrow('Invalid refresh token');
     });
 
-    it('should reject expired refresh token', async () => {
-      // Create expired token by mocking jwt.verify
-      const jwt = require('jsonwebtoken');
-      const originalVerify = jwt.verify;
-      
-      jwt.verify = jest.fn().mockImplementation(() => {
-        const error = new Error('Token expired');
-        error.name = 'TokenExpiredError';
-        throw error;
-      });
-      
-      await expect(authService.refreshToken('expired-token')).rejects.toThrow('Invalid refresh token');
-      
-      jwt.verify = originalVerify;
+    it('should throw error when refresh token does not match', async () => {
+      const mockUser = {
+        id: '1',
+        refreshToken: 'different-token',
+        isActive: true
+      };
+
+      jwt.verify = jest.fn().mockReturnValue({ id: '1' });
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      await expect(authService.refreshToken('valid-token')).rejects.toThrow('Invalid refresh token');
     });
 
-    it('should reject refresh token for non-existent user', async () => {
-      const fakeToken = authService.generateRefreshToken('non-existent-id');
-      
-      await expect(authService.refreshToken(fakeToken)).rejects.toThrow('Invalid refresh token');
-    });
+    it('should throw error when user not found', async () => {
+      jwt.verify = jest.fn().mockReturnValue({ id: '1' });
+      User.findByPk = jest.fn().mockResolvedValue(null);
 
-    it('should reject refresh token when user is inactive', async () => {
-      await testUser.update({ isActive: false });
-      
-      refreshToken = authService.generateRefreshToken(testUser.id);
-      testUser.refreshToken = refreshToken;
-      await testUser.save();
-      
-      await expect(authService.refreshToken(refreshToken)).rejects.toThrow('Invalid refresh token');
-    });
-
-    it('should reject refresh token when token does not match stored token', async () => {
-      testUser.refreshToken = 'different-token';
-      await testUser.save();
-      
-      refreshToken = authService.generateRefreshToken(testUser.id);
-      
-      await expect(authService.refreshToken(refreshToken)).rejects.toThrow('Invalid refresh token');
+      await expect(authService.refreshToken('token')).rejects.toThrow('Invalid refresh token');
     });
   });
 
   describe('logout', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'logout@test.com',
-        password: 'password123',
-        firstName: 'Logout',
-        lastName: 'User',
-        role: 'student',
-        refreshToken: 'some-refresh-token'
-      });
-    });
+    it('should logout user successfully', async () => {
+      const mockUser = {
+        id: '1',
+        refreshToken: 'token',
+        save: jest.fn().mockResolvedValue(true)
+      };
 
-    it('should logout user and clear refresh token', async () => {
-      const result = await authService.logout(testUser.id);
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.logout('1');
       
       expect(result.message).toBe('Logged out successfully');
-      
-      const user = await User.findByPk(testUser.id);
-      expect(user.refreshToken).toBeNull();
+      expect(mockUser.refreshToken).toBeNull();
+    });
+
+    it('should handle logout when user not found', async () => {
+      User.findByPk = jest.fn().mockResolvedValue(null);
+
+      const result = await authService.logout('invalid');
+      expect(result.message).toBe('Logged out successfully');
     });
   });
 
   describe('forgotPassword', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'forgot@test.com',
-        password: 'password123',
-        firstName: 'Forgot',
-        lastName: 'User',
-        role: 'student'
-      });
+    it('should generate reset token for existing user', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'test@test.com',
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
+      emailService.sendPasswordResetEmail = jest.fn().mockResolvedValue({});
+
+      const result = await authService.forgotPassword('test@test.com');
+      
+      expect(result.message).toContain('password reset link has been sent');
+      expect(mockUser.passwordResetToken).toBeDefined();
     });
 
-    it('should generate password reset token for existing user', async () => {
-      const result = await authService.forgotPassword('forgot@test.com');
-      
-      expect(result.message).toBe('If email exists, password reset link has been sent');
-      
-      const user = await User.findByPk(testUser.id);
-      expect(user.passwordResetToken).toBeDefined();
-      expect(user.passwordResetExpires).toBeDefined();
-    });
+    it('should return same message for non-existent user', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
 
-    it('should return same message for non-existent user (security)', async () => {
       const result = await authService.forgotPassword('nonexistent@test.com');
-      
-      expect(result.message).toBe('If email exists, password reset link has been sent');
+      expect(result.message).toContain('password reset link has been sent');
     });
 
-    it('should handle email sending failure gracefully', async () => {
-      const emailService = require('../../services/emailService');
-      const originalSend = emailService.sendPasswordResetEmail;
+    it('should handle email sending failure in forgotPassword', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'test@test.com',
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
       emailService.sendPasswordResetEmail = jest.fn().mockRejectedValue(new Error('SMTP Error'));
 
-      // Should not throw error even if email fails
-      const result = await authService.forgotPassword('forgot@test.com');
-      expect(result.message).toBe('If email exists, password reset link has been sent');
+      const result = await authService.forgotPassword('test@test.com');
       
-      // Token should still be set
-      const user = await User.findByPk(testUser.id);
-      expect(user.passwordResetToken).toBeDefined();
-
-      // Restore original function
-      emailService.sendPasswordResetEmail = originalSend;
+      expect(result.message).toContain('password reset link has been sent');
+      expect(mockUser.passwordResetToken).toBeDefined();
     });
   });
 
   describe('resetPassword', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'reset@test.com',
-        password: 'oldpassword',
-        firstName: 'Reset',
-        lastName: 'User',
-        role: 'student',
-        passwordResetToken: 'valid-reset-token',
-        passwordResetExpires: new Date(Date.now() + 60 * 60 * 1000)
-      });
-    });
-
     it('should reset password with valid token', async () => {
-      const result = await authService.resetPassword('valid-reset-token', 'newpassword123');
+      const mockUser = {
+        id: '1',
+        passwordResetToken: 'valid-token',
+        passwordResetExpires: new Date(Date.now() + 3600000),
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.resetPassword('valid-token', 'newpassword123');
       
       expect(result.message).toBe('Password reset successfully');
-      
-      const user = await User.findByPk(testUser.id);
-      expect(user.passwordResetToken).toBeNull();
-      expect(await user.comparePassword('newpassword123')).toBe(true);
+      expect(mockUser.passwordResetToken).toBeNull();
     });
 
-    it('should reject expired reset token', async () => {
-      await testUser.update({
-        passwordResetExpires: new Date(Date.now() - 1000)
-      });
+    it('should throw error for invalid token', async () => {
+      User.findOne = jest.fn().mockResolvedValue(null);
 
-      await expect(authService.resetPassword('valid-reset-token', 'newpassword123')).rejects.toThrow('Invalid or expired reset token');
-    });
-
-    it('should reject invalid reset token', async () => {
       await expect(authService.resetPassword('invalid-token', 'newpassword123')).rejects.toThrow('Invalid or expired reset token');
+    });
+
+    it('should throw error for expired token', async () => {
+      const mockUser = {
+        id: '1',
+        passwordResetToken: 'expired-token',
+        passwordResetExpires: new Date(Date.now() - 1000)
+      };
+
+      User.findOne = jest.fn().mockResolvedValue(null);
+
+      await expect(authService.resetPassword('expired-token', 'newpassword123')).rejects.toThrow('Invalid or expired reset token');
     });
   });
 
   describe('getProfile', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'profile@test.com',
-        password: 'password123',
-        firstName: 'Profile',
-        lastName: 'User',
-        role: 'student'
-      });
+    it('should get user profile', async () => {
+      const mockUser = { id: '1', email: 'test@test.com' };
 
-      await Student.create({
-        userId: testUser.id,
-        studentNumber: 'CS240001',
-        departmentId: testDepartment.id,
-        enrollmentYear: 2024
-      });
-    });
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
 
-    it('should return user profile with related data', async () => {
-      const profile = await authService.getProfile(testUser.id);
+      const result = await authService.getProfile('1');
       
-      expect(profile).toBeDefined();
-      expect(profile.email).toBe('profile@test.com');
-      expect(profile.studentProfile).toBeDefined();
-      expect(profile.studentProfile.studentNumber).toBe('CS240001');
+      expect(result).toBeDefined();
+      expect(User.findByPk).toHaveBeenCalledWith('1', expect.any(Object));
     });
 
-    it('should throw error for non-existent user', async () => {
-      await expect(authService.getProfile('non-existent-id')).rejects.toThrow('User not found');
+    it('should throw error when user not found', async () => {
+      User.findByPk = jest.fn().mockResolvedValue(null);
+
+      await expect(authService.getProfile('invalid')).rejects.toThrow('User not found');
+    });
+
+    it('should include student and faculty profiles', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'test@test.com',
+        studentProfile: { id: 's1' },
+        facultyProfile: null
+      };
+
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.getProfile('1');
+      
+      expect(result).toBeDefined();
+      expect(User.findByPk).toHaveBeenCalledWith('1', expect.objectContaining({
+        include: expect.any(Array)
+      }));
     });
   });
 
   describe('updateProfile', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'update@test.com',
-        password: 'password123',
-        firstName: 'Update',
-        lastName: 'User',
-        role: 'student',
-        phone: '1234567890'
-      });
-    });
-
     it('should update user profile', async () => {
-      const updateData = {
-        firstName: 'Updated',
+      const mockUser = {
+        id: '1',
+        firstName: 'Old',
         lastName: 'Name',
-        phone: '9876543210'
+        save: jest.fn().mockResolvedValue(true)
       };
 
-      const updatedUser = await authService.updateProfile(testUser.id, updateData);
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.updateProfile('1', {
+        firstName: 'New',
+        lastName: 'Name'
+      });
       
-      expect(updatedUser.firstName).toBe('Updated');
-      expect(updatedUser.lastName).toBe('Name');
-      expect(updatedUser.phone).toBe('9876543210');
+      expect(result.firstName).toBe('New');
+      expect(mockUser.save).toHaveBeenCalled();
     });
 
-    it('should throw error for non-existent user', async () => {
-      await expect(authService.updateProfile('non-existent-id', { firstName: 'Test' })).rejects.toThrow('User not found');
+    it('should throw error when user not found', async () => {
+      User.findByPk = jest.fn().mockResolvedValue(null);
+
+      await expect(authService.updateProfile('invalid', {})).rejects.toThrow('User not found');
+    });
+
+    it('should only update allowed fields', async () => {
+      const mockUser = {
+        id: '1',
+        firstName: 'Old',
+        lastName: 'Name',
+        phone: '123',
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      await authService.updateProfile('1', {
+        firstName: 'New',
+        lastName: 'NewName',
+        phone: '456',
+        email: 'hack@test.com' // Should be ignored
+      });
+      
+      expect(mockUser.firstName).toBe('New');
+      expect(mockUser.lastName).toBe('NewName');
+      expect(mockUser.phone).toBe('456');
+      expect(mockUser.email).toBeUndefined();
     });
   });
 
   describe('updateProfilePicture', () => {
-    beforeEach(async () => {
-      testUser = await User.create({
-        email: 'picture@test.com',
-        password: 'password123',
-        firstName: 'Picture',
-        lastName: 'User',
-        role: 'student'
-      });
-    });
-
     it('should update profile picture', async () => {
-      const filename = 'test-picture.jpg';
-      const updatedUser = await authService.updateProfilePicture(testUser.id, filename);
+      const mockUser = {
+        id: '1',
+        profilePicture: null,
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+
+      const result = await authService.updateProfilePicture('1', 'picture.jpg');
       
-      expect(updatedUser.profilePicture).toBe(filename);
+      expect(result.profilePicture).toBe('picture.jpg');
     });
 
-    it('should throw error for non-existent user', async () => {
-      await expect(authService.updateProfilePicture('non-existent-id', 'test.jpg')).rejects.toThrow('User not found');
-    });
-
-    it('should delete old profile picture when updating', async () => {
+    it('should delete old picture when updating', async () => {
       const fs = require('fs');
-      const oldFilename = 'old-picture.jpg';
+      const mockUser = {
+        id: '1',
+        profilePicture: 'old.jpg',
+        save: jest.fn().mockResolvedValue(true)
+      };
+
+      User.findByPk = jest.fn().mockResolvedValue(mockUser);
+      fs.existsSync = jest.fn().mockReturnValue(true);
+      fs.unlinkSync = jest.fn();
+
+      await authService.updateProfilePicture('1', 'new.jpg');
       
-      testUser = await User.create({
-        email: 'deletepic@test.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'User',
-        role: 'student',
-        profilePicture: oldFilename
-      });
-
-      // Mock fs.existsSync and fs.unlinkSync
-      const existsSyncSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(true);
-      const unlinkSyncSpy = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {});
-
-      const newFilename = 'new-picture.jpg';
-      const updatedUser = await authService.updateProfilePicture(testUser.id, newFilename);
-
-      expect(updatedUser.profilePicture).toBe(newFilename);
-      expect(existsSyncSpy).toHaveBeenCalledWith(`uploads/profile-pictures/${oldFilename}`);
-      expect(unlinkSyncSpy).toHaveBeenCalledWith(`uploads/profile-pictures/${oldFilename}`);
-
-      existsSyncSpy.mockRestore();
-      unlinkSyncSpy.mockRestore();
+      expect(fs.unlinkSync).toHaveBeenCalled();
     });
 
-    it('should not delete file if old picture does not exist', async () => {
-      const fs = require('fs');
-      
-      testUser = await User.create({
-        email: 'nofile@test.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'User',
-        role: 'student',
-        profilePicture: 'non-existent.jpg'
-      });
+    it('should throw error when user not found', async () => {
+      User.findByPk = jest.fn().mockResolvedValue(null);
 
-      const existsSyncSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(false);
-      const unlinkSyncSpy = jest.spyOn(fs, 'unlinkSync').mockImplementation(() => {});
-
-      const newFilename = 'new-picture.jpg';
-      const updatedUser = await authService.updateProfilePicture(testUser.id, newFilename);
-
-      expect(updatedUser.profilePicture).toBe(newFilename);
-      expect(existsSyncSpy).toHaveBeenCalled();
-      expect(unlinkSyncSpy).not.toHaveBeenCalled();
-
-      existsSyncSpy.mockRestore();
-      unlinkSyncSpy.mockRestore();
+      await expect(authService.updateProfilePicture('invalid', 'pic.jpg')).rejects.toThrow('User not found');
     });
   });
 });

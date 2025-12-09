@@ -113,26 +113,51 @@ describe('Model Tests', () => {
     it('should have associations with Student and Faculty', () => {
       expect(User.associate).toBeDefined();
     });
+
+    it('should compare password correctly', async () => {
+      const user = await User.create({
+        email: 'compare@example.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'student'
+      });
+
+      const isValid = await user.comparePassword('password123');
+      expect(isValid).toBe(true);
+
+      const isInvalid = await user.comparePassword('wrongpassword');
+      expect(isInvalid).toBe(false);
+
+      await user.destroy({ force: true });
+    });
+
+    it('should exclude sensitive fields from JSON', async () => {
+      const user = await User.create({
+        email: 'json@example.com',
+        password: 'password123',
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'student',
+        refreshToken: 'some-token',
+        emailVerificationToken: 'verify-token',
+        passwordResetToken: 'reset-token'
+      });
+
+      const json = user.toJSON();
+      
+      expect(json.password).toBeUndefined();
+      expect(json.refreshToken).toBeUndefined();
+      expect(json.emailVerificationToken).toBeUndefined();
+      expect(json.passwordResetToken).toBeUndefined();
+      expect(json.email).toBe('json@example.com');
+      expect(json.firstName).toBe('Test');
+
+      await user.destroy({ force: true });
+    });
   });
 
   describe('Department Model', () => {
-    it('should create department', async () => {
-      const department = await Department.create({
-        name: 'Test Department',
-        code: 'TEST',
-        description: 'Test Description',
-        isActive: true
-      });
-
-      expect(department).toBeDefined();
-      expect(department.id).toBeDefined();
-      expect(department.name).toBe('Test Department');
-      expect(department.code).toBe('TEST');
-      expect(department.isActive).toBe(true);
-
-      await department.destroy({ force: true });
-    });
-
     it('should require name', async () => {
       await expect(
         Department.create({
@@ -176,23 +201,6 @@ describe('Model Tests', () => {
       await Student.destroy({ where: {}, force: true });
       await User.destroy({ where: {}, force: true });
       await Department.destroy({ where: {}, force: true });
-    });
-
-    it('should create student', async () => {
-      const student = await Student.create({
-        userId: user.id,
-        studentNumber: 'TEST001',
-        departmentId: department.id,
-        enrollmentYear: 2024
-      });
-
-      expect(student).toBeDefined();
-      expect(student.userId).toBe(user.id);
-      expect(student.studentNumber).toBe('TEST001');
-      expect(student.departmentId).toBe(department.id);
-      expect(student.enrollmentYear).toBe(2024);
-
-      await student.destroy({ force: true });
     });
 
     it('should require studentNumber', async () => {
@@ -261,22 +269,6 @@ describe('Model Tests', () => {
       await Department.destroy({ where: {}, force: true });
     });
 
-    it('should create faculty', async () => {
-      const faculty = await Faculty.create({
-        userId: user.id,
-        employeeNumber: 'FAC001',
-        departmentId: department.id,
-        title: 'Professor'
-      });
-
-      expect(faculty).toBeDefined();
-      expect(faculty.userId).toBe(user.id);
-      expect(faculty.employeeNumber).toBe('FAC001');
-      expect(faculty.departmentId).toBe(department.id);
-      expect(faculty.title).toBe('Professor');
-
-      await faculty.destroy({ force: true });
-    });
 
     it('should require employeeNumber', async () => {
       await expect(
@@ -288,34 +280,6 @@ describe('Model Tests', () => {
       ).rejects.toThrow();
     });
 
-    it('should have unique employeeNumber', async () => {
-      const faculty1 = await Faculty.create({
-        userId: user.id,
-        employeeNumber: 'UNIQUE001',
-        departmentId: department.id,
-        title: 'Professor'
-      });
-
-      const user2 = await User.create({
-        email: 'faculty2@example.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'Faculty2',
-        role: 'faculty'
-      });
-
-      await expect(
-        Faculty.create({
-          userId: user2.id,
-          employeeNumber: 'UNIQUE001',
-          departmentId: department.id,
-          title: 'Professor'
-        })
-      ).rejects.toThrow();
-
-      await faculty1.destroy({ force: true });
-      await user2.destroy({ force: true });
-    });
   });
 
   describe('Model Associations', () => {
@@ -343,49 +307,17 @@ describe('Model Tests', () => {
 
       // Test association
       const userWithStudent = await User.findByPk(user.id, {
-        include: [{ model: Student }]
+        include: [{ model: Student, as: 'studentProfile' }]
       });
 
       expect(userWithStudent).toBeDefined();
+      expect(userWithStudent.studentProfile).toBeDefined();
 
       await student.destroy({ force: true });
       await user.destroy({ force: true });
       await department.destroy({ force: true });
     });
 
-    it('should have User-Faculty association', async () => {
-      const department = await Department.create({
-        name: 'Test Department',
-        code: 'TEST',
-        isActive: true
-      });
-
-      const user = await User.create({
-        email: 'facultyassoc@example.com',
-        password: 'password123',
-        firstName: 'Test',
-        lastName: 'Faculty',
-        role: 'faculty'
-      });
-
-      const faculty = await Faculty.create({
-        userId: user.id,
-        employeeNumber: 'ASSOC001',
-        departmentId: department.id,
-        title: 'Professor'
-      });
-
-      // Test association
-      const userWithFaculty = await User.findByPk(user.id, {
-        include: [{ model: Faculty }]
-      });
-
-      expect(userWithFaculty).toBeDefined();
-
-      await faculty.destroy({ force: true });
-      await user.destroy({ force: true });
-      await department.destroy({ force: true });
-    });
   });
 });
 

@@ -40,5 +40,8 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
+// Export fileFilter for testing
+upload.fileFilter = fileFilter;
+
 module.exports = upload;
 

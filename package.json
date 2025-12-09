@@ -8,6 +8,8 @@
     "dev": "nodemon src/server.js",
     "test": "jest --coverage --forceExit --detectOpenHandles",
     "test:watch": "jest --watch",
+    "test:setup": "node scripts/create-test-db.js",
+    "test:full": "npm run test:setup && npm test",
     "db:migrate": "sequelize-cli db:migrate",
     "db:seed": "sequelize-cli db:seed:all",
     "db:reset": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate && sequelize-cli db:seed:all"
