@@ -58,6 +58,18 @@ const startServer = async () => {
         console.log('🔄 Running database migrations...');
         execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' });
         console.log('✅ Database migrations completed.');
+        
+        // Run seeds after migrations (only if RUN_SEEDS is set to true)
+        if (process.env.RUN_SEEDS === 'true') {
+          try {
+            console.log('🌱 Running database seeds...');
+            execSync('npx sequelize-cli db:seed:all', { stdio: 'inherit' });
+            console.log('✅ Database seeds completed.');
+          } catch (seedError) {
+            console.error('⚠️ Seed error (continuing anyway):', seedError.message);
+            // Continue even if seed fails (might already be seeded)
+          }
+        }
       } catch (migrationError) {
         console.error('⚠️ Migration error (continuing anyway):', migrationError.message);
         // Continue even if migration fails (might already be up to date)
