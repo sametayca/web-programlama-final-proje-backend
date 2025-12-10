@@ -146,16 +146,51 @@ class AuthService {
 
   // Verify email
   async verifyEmail(token) {
+    // Trim token to handle whitespace issues
+    const trimmedToken = token ? token.trim() : null;
+    
+    if (!trimmedToken) {
+      throw new Error('Doğrulama token\'ı gerekli');
+    }
+
+    console.log('🔍 Verifying token:', trimmedToken.substring(0, 20) + '...');
+    console.log('🔍 Token length:', trimmedToken.length);
+
     const user = await User.findOne({
       where: {
-        emailVerificationToken: token,
-        emailVerificationExpires: { [Sequelize.Op.gt]: new Date() }
+        emailVerificationToken: trimmedToken
       }
     });
 
     if (!user) {
-      throw new Error('Invalid or expired verification token');
+      // Debug: Check if any users have tokens
+      console.log('⚠️ Token not found, checking for tokens in database...');
+      const allUsers = await User.findAll({
+        where: {
+          emailVerificationToken: { [Sequelize.Op.ne]: null }
+        },
+        attributes: ['id', 'email', 'emailVerificationToken'],
+        limit: 5
+      });
+      console.log(`Found ${allUsers.length} users with verification tokens`);
+      if (allUsers.length > 0) {
+        console.log('Sample token from DB:', allUsers[0].emailVerificationToken?.substring(0, 20) + '...');
+      }
+      
+      throw new Error('Geçersiz doğrulama token\'ı');
     }
+
+    // Check if token is expired
+    if (user.emailVerificationExpires && new Date() > user.emailVerificationExpires) {
+      throw new Error('Doğrulama token\'ının süresi dolmuş. Lütfen yeni bir doğrulama e-postası isteyin.');
+    }
+
+    // Check if already verified
+    if (user.isEmailVerified) {
+      throw new Error('Bu e-posta adresi zaten doğrulanmış');
+    }
+
+    console.log('✅ Token verified for user:', user.email);
 
     user.isEmailVerified = true;
     user.emailVerificationToken = null;

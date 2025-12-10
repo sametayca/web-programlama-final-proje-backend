@@ -7,10 +7,19 @@ const validateRequest = require('../middleware/validateRequest');
 
 const router = express.Router();
 
+// Custom password validation
+const passwordValidation = body('password')
+  .isLength({ min: 8 })
+  .withMessage('Şifre en az 8 karakter olmalıdır')
+  .matches(/[A-Z]/)
+  .withMessage('Şifre en az bir büyük harf içermelidir')
+  .matches(/[0-9]/)
+  .withMessage('Şifre en az bir rakam içermelidir');
+
 // Validation rules
 const registerValidation = [
   body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 }),
+  passwordValidation,
   body('firstName').notEmpty().trim(),
   body('lastName').notEmpty().trim(),
   body('role').isIn(['student', 'faculty', 'admin', 'staff'])
@@ -27,7 +36,7 @@ const forgotPasswordValidation = [
 
 const resetPasswordValidation = [
   body('token').notEmpty(),
-  body('password').isLength({ min: 6 })
+  passwordValidation
 ];
 
 const updateProfileValidation = [
@@ -58,20 +67,27 @@ router.post('/register', registerValidation, validateRequest, async (req, res, n
 router.get('/verify-email', async (req, res, next) => {
   try {
     const { token } = req.query;
+    console.log('📥 Verify email request received, token length:', token?.length);
+    
     if (!token) {
       return res.status(400).json({
         success: false,
-        error: 'Verification token is required'
+        error: 'Doğrulama token\'ı gerekli',
+        message: 'Doğrulama token\'ı gerekli'
       });
     }
 
-    const user = await authService.verifyEmail(token);
+    // Trim token to handle any whitespace
+    const trimmedToken = token.trim();
+    
+    const user = await authService.verifyEmail(trimmedToken);
     res.json({
       success: true,
-      message: 'Email verified successfully',
+      message: 'E-posta başarıyla doğrulandı',
       data: user
     });
   } catch (error) {
+    console.error('❌ Verify email error:', error.message);
     next(error);
   }
 });
@@ -122,10 +138,7 @@ router.post('/refresh-token', async (req, res, next) => {
 router.post('/logout', authGuard, async (req, res, next) => {
   try {
     const result = await authService.logout(req.user.id);
-    res.json({
-      success: true,
-      message: result.message
-    });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

@@ -10,7 +10,9 @@ process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-refresh
 
 module.exports = {
   testEnvironment: 'node',
-  transform: {},
+  transform: {
+    '^.+\\.js$': 'babel-jest'
+  },
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/**/*.js',
