@@ -51,6 +51,19 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('✅ Database connection established successfully.');
     
+    // Run migrations in production
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        const { execSync } = require('child_process');
+        console.log('🔄 Running database migrations...');
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' });
+        console.log('✅ Database migrations completed.');
+      } catch (migrationError) {
+        console.error('⚠️ Migration error (continuing anyway):', migrationError.message);
+        // Continue even if migration fails (might already be up to date)
+      }
+    }
+    
     // Sync database in development
     if (process.env.NODE_ENV === 'development') {
       await sequelize.sync({ alter: true });
