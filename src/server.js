@@ -34,15 +34,15 @@ app.use(express.urlencoded({ extended: true }));
 // Static files for profile pictures
 app.use('/uploads', express.static('uploads'));
 
-// Routes
+// Routess
 app.use('/api', routes);
 
-// Health check
+// Health checkk
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Web Programlama Final Projesi API is running' });
 });
 
-// Error handler (must be last)
+// Error handler (must be lastt)
 app.use(errorHandler);
 
 // Database connection and server start - Main server initialization
