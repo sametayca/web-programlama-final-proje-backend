@@ -18,13 +18,11 @@ npx sequelize-cli db:migrate || {
   echo "⚠️ Migration failed, but continuing..."
 }
 
-# Run seeds if RUN_SEEDS is set to true
-if [ "$RUN_SEEDS" = "true" ]; then
-  echo "🌱 Running database seeds..."
-  npx sequelize-cli db:seed:all || {
-    echo "⚠️ Seed failed, but continuing..."
-  }
-fi
+# Run seeds (always run, but skip if already seeded)
+echo "🌱 Running database seeds..."
+npx sequelize-cli db:seed:all || {
+  echo "⚠️ Seed failed or already seeded, but continuing..."
+}
 
 # Start the application
 echo "🚀 Starting application..."
