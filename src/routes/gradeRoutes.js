@@ -102,36 +102,157 @@ router.get(
   roleGuard('student'),
   async (req, res) => {
     try {
+      const PDFDocument = require('pdfkit');
       const studentId = req.user.id;
       const transcript = await gradeCalculationService.generateTranscript(studentId);
       const user = await User.findByPk(studentId, {
         include: [{
           model: require('../models').Student,
           as: 'studentProfile',
-          attributes: ['studentNumber']
+          include: [{
+            model: require('../models').Department,
+            as: 'department',
+            attributes: ['name', 'code']
+          }]
         }]
       });
 
-      // For now, return JSON. PDF generation can be added later with PDFKit
-      res.json({
-        success: true,
-        message: 'PDF generation will be implemented with PDFKit package',
-        data: {
-          student: {
-            name: `${user.firstName} ${user.lastName}`,
-            studentNumber: user.studentProfile?.studentNumber || 'N/A',
-            email: user.email
-          },
-          transcript,
-          cgpa: transcript.cgpa
-        }
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+
+      // Create PDF document
+      const doc = new PDFDocument({ 
+        margin: 50,
+        size: 'A4'
       });
 
-      // TODO: Install pdfkit and implement PDF generation
-      // const PDFDocument = require('pdfkit');
-      // const doc = new PDFDocument({ margin: 50 });
-      // ... PDF generation code ...
+      // Set response headers
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=transcript-${user.studentProfile?.studentNumber || user.email}.pdf`);
+
+      // Pipe PDF to response
+      doc.pipe(res);
+
+      // University Header
+      doc.fontSize(20)
+         .font('Helvetica-Bold')
+         .text('AKILLI KAMPÜS YÖNETİM PLATFORMU', { align: 'center' });
+      
+      doc.moveDown(0.5);
+      doc.fontSize(14)
+         .font('Helvetica')
+         .text('ACADEMIC TRANSCRIPT', { align: 'center' });
+      
+      doc.moveDown(1);
+
+      // Student Information
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .text('Student Information', { underline: true });
+      
+      doc.moveDown(0.3);
+      doc.font('Helvetica')
+         .fontSize(10)
+         .text(`Name: ${user.firstName} ${user.lastName}`, { indent: 20 });
+      doc.text(`Student Number: ${user.studentProfile?.studentNumber || 'N/A'}`, { indent: 20 });
+      doc.text(`Email: ${user.email}`, { indent: 20 });
+      doc.text(`Department: ${user.studentProfile?.department?.name || 'N/A'}`, { indent: 20 });
+      doc.text(`CGPA: ${transcript.cgpa.toFixed(2)}`, { indent: 20 });
+      doc.text(`Total Credits: ${transcript.totalCredits}`, { indent: 20 });
+
+      doc.moveDown(1);
+
+      // Transcript Table Header
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .text('Academic Record', { underline: true });
+      
+      doc.moveDown(0.5);
+
+      // Table headers
+      const tableTop = doc.y;
+      const leftMargin = 50;
+      const colWidths = {
+        code: 80,
+        name: 200,
+        credits: 60,
+        semester: 80,
+        year: 60,
+        grade: 60,
+        point: 60
+      };
+
+      doc.fontSize(9)
+         .font('Helvetica-Bold');
+      
+      let x = leftMargin;
+      doc.text('Code', x, tableTop);
+      x += colWidths.code;
+      doc.text('Course Name', x, tableTop);
+      x += colWidths.name;
+      doc.text('Credits', x, tableTop);
+      x += colWidths.credits;
+      doc.text('Semester', x, tableTop);
+      x += colWidths.semester;
+      doc.text('Year', x, tableTop);
+      x += colWidths.year;
+      doc.text('Grade', x, tableTop);
+      x += colWidths.grade;
+      doc.text('Point', x, tableTop);
+
+      // Draw line under header
+      doc.moveTo(leftMargin, tableTop + 15)
+         .lineTo(leftMargin + Object.values(colWidths).reduce((a, b) => a + b, 0), tableTop + 15)
+         .stroke();
+
+      doc.moveDown(0.3);
+
+      // Transcript rows
+      doc.font('Helvetica')
+         .fontSize(9);
+      
+      transcript.transcript.forEach((course, index) => {
+        const rowY = doc.y;
+        
+        // Check if we need a new page
+        if (rowY > 700) {
+          doc.addPage();
+          doc.y = 50;
+        }
+
+        x = leftMargin;
+        doc.text(course.courseCode || 'N/A', x, rowY, { width: colWidths.code, ellipsis: true });
+        x += colWidths.code;
+        doc.text(course.courseName || 'N/A', x, rowY, { width: colWidths.name, ellipsis: true });
+        x += colWidths.name;
+        doc.text(String(course.credits || 0), x, rowY, { width: colWidths.credits });
+        x += colWidths.credits;
+        doc.text(course.semester || 'N/A', x, rowY, { width: colWidths.semester });
+        x += colWidths.semester;
+        doc.text(String(course.year || 'N/A'), x, rowY, { width: colWidths.year });
+        x += colWidths.year;
+        doc.text(course.letterGrade || '-', x, rowY, { width: colWidths.grade });
+        x += colWidths.grade;
+        doc.text(course.gradePoint ? course.gradePoint.toFixed(2) : '-', x, rowY, { width: colWidths.point });
+
+        doc.moveDown(0.4);
+      });
+
+      // Footer
+      doc.moveDown(1);
+      doc.fontSize(8)
+         .font('Helvetica')
+         .text('This transcript is generated electronically and is valid without signature.', { align: 'center' });
+      doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { align: 'center' });
+
+      // Finalize PDF
+      doc.end();
     } catch (error) {
+      console.error('PDF generation error:', error);
       res.status(500).json({
         success: false,
         error: error.message

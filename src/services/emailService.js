@@ -185,6 +185,43 @@ class EmailService {
       throw error;
     }
   }
+
+  async sendEmail(email, subject, htmlContent) {
+    const msg = {
+      to: email,
+      from: {
+        email: this.fromEmail,
+        name: process.env.EMAIL_FROM_NAME || 'Web Programlama Final Projesi'
+      },
+      subject: subject,
+      html: htmlContent
+    };
+
+    // Development mode: log to console instead of sending
+    if (this.isDevMode) {
+      console.log('\n========================================');
+      console.log('📧 E-POSTA (Geliştirme Modu)');
+      console.log('========================================');
+      console.log('Kime:', email);
+      console.log('Konu:', subject);
+      console.log('\nİçerik:');
+      console.log(htmlContent);
+      console.log('========================================\n');
+      return { messageId: 'dev-mode-' + Date.now() };
+    }
+
+    try {
+      const result = await sgMail.send(msg);
+      console.log('✅ E-posta gönderildi:', email);
+      return result;
+    } catch (error) {
+      console.error('❌ SendGrid e-posta gönderme hatası:', error.message);
+      if (error.response) {
+        console.error('   SendGrid Response:', JSON.stringify(error.response.body, null, 2));
+      }
+      throw error;
+    }
+  }
 }
 
 module.exports = new EmailService();

@@ -87,6 +87,12 @@ const startServer = async () => {
       app.listen(PORT, () => {
         console.log(`🚀 Server is running on port ${PORT}`);
         console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+        
+        // Start background jobs
+        if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
+          const absenceWarningJob = require('./jobs/absenceWarningJob');
+          absenceWarningJob.start();
+        }
       });
     }
   } catch (error) {
