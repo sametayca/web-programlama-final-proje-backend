@@ -103,6 +103,31 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'userId',
       as: 'facultyProfile'
     });
+    // Part 2 Associations
+    User.hasMany(models.CourseSection, {
+      foreignKey: 'instructorId',
+      as: 'instructedSections'
+    });
+    User.hasMany(models.Enrollment, {
+      foreignKey: 'studentId',
+      as: 'enrollments'
+    });
+    User.hasMany(models.AttendanceSession, {
+      foreignKey: 'instructorId',
+      as: 'attendanceSessions'
+    });
+    User.hasMany(models.AttendanceRecord, {
+      foreignKey: 'studentId',
+      as: 'attendanceRecords'
+    });
+    User.hasMany(models.ExcuseRequest, {
+      foreignKey: 'studentId',
+      as: 'excuseRequests'
+    });
+    User.hasMany(models.ExcuseRequest, {
+      foreignKey: 'reviewedBy',
+      as: 'reviewedExcuseRequests'
+    });
   };
 
   User.prototype.comparePassword = async function(candidatePassword) {

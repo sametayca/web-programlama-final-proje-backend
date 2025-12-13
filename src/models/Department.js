@@ -37,6 +37,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'departmentId',
       as: 'faculty'
     });
+    Department.hasMany(models.Course, {
+      foreignKey: 'departmentId',
+      as: 'courses'
+    });
   };
 
   return Department;

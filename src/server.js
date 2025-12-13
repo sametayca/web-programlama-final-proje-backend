@@ -34,7 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 // Static files for profile pictures
 app.use('/uploads', express.static('uploads'));
 
-// Routess
+// Routes
 app.use('/api', routes);
 
 // Health checkk
