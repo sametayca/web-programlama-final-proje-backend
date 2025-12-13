@@ -106,6 +106,120 @@ class EnrollmentService {
   }
 
   /**
+   * Auto-enroll student in all courses from their department (for new students)
+   * This bypasses prerequisite checks as students are automatically enrolled in their department's courses
+   * @param {string} studentId - Student ID
+   * @param {string} departmentId - Department ID
+   * @returns {Promise<Array>} Array of created enrollments
+   */
+  async autoEnrollByDepartment(studentId, departmentId) {
+    const { Course, CourseSection, Student } = require('../models');
+    const { Op } = require('sequelize');
+
+    // Get student info
+    const student = await Student.findOne({
+      where: { userId: studentId }
+    });
+
+    if (!student) {
+      throw new Error('Student profile not found');
+    }
+
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    const semester = currentMonth >= 0 && currentMonth < 6 ? 'spring' : 'fall';
+
+    // Get all active courses from student's department
+    const courses = await Course.findAll({
+      where: {
+        departmentId: departmentId,
+        isActive: true
+      }
+    });
+
+    if (courses.length === 0) {
+      return []; // No courses to enroll in
+    }
+
+    const courseIds = courses.map(c => c.id);
+
+    // Get all active sections for these courses in current semester/year
+    const sections = await CourseSection.findAll({
+      where: {
+        courseId: { [Op.in]: courseIds },
+        semester: semester,
+        year: currentYear,
+        isActive: true
+      },
+      include: [{
+        model: Course,
+        as: 'course',
+        attributes: ['id', 'code', 'name']
+      }]
+    });
+
+    if (sections.length === 0) {
+      return []; // No sections available
+    }
+
+    const enrollments = [];
+    const transaction = await require('../models').sequelize.transaction();
+
+    try {
+      for (const section of sections) {
+        // Skip if already enrolled
+        const existing = await Enrollment.findOne({
+          where: { studentId, sectionId: section.id },
+          transaction
+        });
+
+        if (existing) {
+          continue;
+        }
+
+        // Skip if section is full
+        if (section.enrolledCount >= section.capacity) {
+          console.log(`Section ${section.id} (${section.course.code}) is full, skipping...`);
+          continue;
+        }
+
+        // Atomic enrollment: Update capacity and create enrollment
+        const [updatedRows] = await CourseSection.update(
+          { enrolledCount: section.enrolledCount + 1 },
+          {
+            where: {
+              id: section.id,
+              enrolledCount: { [Op.lt]: section.capacity }
+            },
+            transaction
+          }
+        );
+
+        if (updatedRows === 0) {
+          console.log(`Failed to update capacity for section ${section.id}, skipping...`);
+          continue;
+        }
+
+        // Create enrollment (no prerequisite check for auto-enrollment)
+        const enrollment = await Enrollment.create({
+          studentId,
+          sectionId: section.id,
+          status: 'enrolled',
+          enrollmentDate: new Date()
+        }, { transaction });
+
+        enrollments.push(enrollment);
+      }
+
+      await transaction.commit();
+      return enrollments;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  /**
    * Drop enrollment
    * @param {string} enrollmentId - Enrollment ID
    * @param {string} studentId - Student ID (for authorization)

@@ -197,6 +197,32 @@ class AuthService {
     user.emailVerificationExpires = null;
     await user.save();
 
+    // Auto-enroll student in their department's courses after email verification
+    if (user.role === 'student') {
+      try {
+        const studentProfile = await Student.findOne({
+          where: { userId: user.id },
+          include: [{
+            model: Department,
+            as: 'department'
+          }]
+        });
+
+        if (studentProfile && studentProfile.departmentId) {
+          console.log(`🎓 Auto-enrolling student ${user.email} in department courses...`);
+          const enrollmentService = require('./enrollmentService');
+          const enrollments = await enrollmentService.autoEnrollByDepartment(
+            user.id,
+            studentProfile.departmentId
+          );
+          console.log(`✅ Auto-enrolled in ${enrollments.length} courses`);
+        }
+      } catch (error) {
+        console.error('⚠️ Auto-enrollment failed (non-critical):', error.message);
+        // Don't throw error, email verification should still succeed
+      }
+    }
+
     return user;
   }
 
@@ -217,6 +243,31 @@ class AuthService {
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       throw new Error('Invalid credentials');
+    }
+
+    // Auto-enroll student in department courses if email verified but no enrollments yet
+    if (user.role === 'student' && user.isEmailVerified && user.studentProfile?.departmentId) {
+      // Check if student has any enrollments (async, non-blocking)
+      const { Enrollment } = require('../models');
+      Enrollment.count({
+        where: { studentId: user.id, status: 'enrolled' }
+      }).then(async (count) => {
+        if (count === 0) {
+          try {
+            console.log(`🎓 Auto-enrolling existing student ${user.email} in department courses...`);
+            const enrollmentService = require('./enrollmentService');
+            const enrollments = await enrollmentService.autoEnrollByDepartment(
+              user.id,
+              user.studentProfile.departmentId
+            );
+            console.log(`✅ Auto-enrolled in ${enrollments.length} courses`);
+          } catch (error) {
+            console.error('⚠️ Auto-enrollment failed (non-critical):', error.message);
+          }
+        }
+      }).catch(err => {
+        console.error('⚠️ Error checking enrollments:', err.message);
+      });
     }
 
     // Generate tokens
