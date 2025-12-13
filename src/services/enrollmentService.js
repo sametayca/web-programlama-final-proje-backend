@@ -166,6 +166,9 @@ class EnrollmentService {
     const transaction = await require('../models').sequelize.transaction();
 
     try {
+      // Track enrolled sections to check conflicts within the same batch
+      const enrolledSections = [];
+
       for (const section of sections) {
         // Skip if already enrolled
         const existing = await Enrollment.findOne({
@@ -180,6 +183,52 @@ class EnrollmentService {
         // Skip if section is full
         if (section.enrolledCount >= section.capacity) {
           console.log(`Section ${section.id} (${section.course.code}) is full, skipping...`);
+          continue;
+        }
+
+        // Check schedule conflict with already enrolled sections (in this batch and existing)
+        const sectionSchedule = {
+          days: section.scheduleJson?.days || [],
+          startTime: section.scheduleJson?.startTime,
+          endTime: section.scheduleJson?.endTime,
+          semester: section.semester,
+          year: section.year
+        };
+
+        // Check conflict with existing enrollments
+        const conflictCheck = await scheduleConflictService.checkScheduleConflict(
+          studentId,
+          sectionSchedule
+        );
+
+        if (conflictCheck.hasConflict) {
+          const conflicting = conflictCheck.conflictingSections
+            .map(s => s.courseCode)
+            .join(', ');
+          console.log(`⚠️ Skipping ${section.course.code} due to schedule conflict with: ${conflicting}`);
+          continue;
+        }
+
+        // Check conflict with sections in current batch
+        let hasBatchConflict = false;
+        for (const enrolledSection of enrolledSections) {
+          if (
+            enrolledSection.semester === section.semester &&
+            enrolledSection.year === section.year
+          ) {
+            const conflict = scheduleConflictService.hasTimeOverlap(
+              enrolledSection.scheduleJson,
+              section.scheduleJson
+            );
+            if (conflict) {
+              console.log(`⚠️ Skipping ${section.course.code} due to batch conflict with ${enrolledSection.course.code}`);
+              hasBatchConflict = true;
+              break;
+            }
+          }
+        }
+
+        if (hasBatchConflict) {
           continue;
         }
 
@@ -209,6 +258,12 @@ class EnrollmentService {
         }, { transaction });
 
         enrollments.push(enrollment);
+        
+        // Track this section for batch conflict checking
+        enrolledSections.push({
+          ...section.toJSON(),
+          course: section.course
+        });
       }
 
       await transaction.commit();
