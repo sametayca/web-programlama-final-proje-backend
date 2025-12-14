@@ -462,6 +462,92 @@ router.get(
   }
 );
 
+// Get sessions for a section (Student only - for excuse requests)
+router.get(
+  '/sessions/section/:sectionId',
+  authGuard,
+  roleGuard('student'),
+  [
+    param('sectionId').isUUID().withMessage('Invalid section ID'),
+    validateRequest
+  ],
+  async (req, res) => {
+    try {
+      const { sectionId } = req.params;
+      const studentId = req.user.id;
+
+      // Verify student is enrolled in this section
+      const { Enrollment } = require('../models');
+      const enrollment = await Enrollment.findOne({
+        where: {
+          sectionId,
+          studentId,
+          status: 'enrolled'
+        }
+      });
+
+      if (!enrollment) {
+        return res.status(403).json({
+          success: false,
+          error: 'You are not enrolled in this section'
+        });
+      }
+
+      // Get all sessions for this section
+      const sessions = await AttendanceSession.findAll({
+        where: { sectionId },
+        order: [['date', 'DESC'], ['startTime', 'DESC']]
+      });
+
+      // Get attendance records for this student
+      const sessionIds = sessions.map(s => s.id);
+      const records = await AttendanceRecord.findAll({
+        where: {
+          sessionId: { [Op.in]: sessionIds },
+          studentId
+        }
+      });
+      const attendedSessionIds = new Set(records.map(r => r.sessionId));
+
+      // Get already excused sessions
+      const excusedRequests = await ExcuseRequest.findAll({
+        where: {
+          sessionId: { [Op.in]: sessionIds },
+          studentId,
+          status: { [Op.in]: ['pending', 'approved'] }
+        }
+      });
+      const excusedSessionIds = new Set(excusedRequests.map(r => r.sessionId));
+
+      // Filter sessions where student was absent and doesn't have pending/approved excuse
+      const availableSessions = sessions
+        .filter(session => {
+          const hasAttended = attendedSessionIds.has(session.id);
+          const hasExcuse = excusedSessionIds.has(session.id);
+          return !hasAttended && !hasExcuse;
+        })
+        .map(session => ({
+          id: session.id,
+          sessionId: session.id,
+          date: session.date,
+          startTime: session.startTime,
+          endTime: session.endTime,
+          status: 'absent'
+        }));
+
+      res.json({
+        success: true,
+        data: availableSessions
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+);
+
 // Get my attendance (Student only)
 router.get(
   '/my-attendance',

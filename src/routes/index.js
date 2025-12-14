@@ -23,6 +23,7 @@ router.use('/v1/sections', sectionRoutes);
 router.use('/v1/enrollments', enrollmentRoutes);
 router.use('/v1/grades', gradeRoutes);
 router.use('/v1/attendance', attendanceRoutes);
+router.use('/v1/announcements', require('./announcementRoutes'));
 
 module.exports = router;
 

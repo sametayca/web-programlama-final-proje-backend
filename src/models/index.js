@@ -34,6 +34,7 @@ db.Enrollment = require('./Enrollment')(sequelize, Sequelize.DataTypes);
 db.AttendanceSession = require('./AttendanceSession')(sequelize, Sequelize.DataTypes);
 db.AttendanceRecord = require('./AttendanceRecord')(sequelize, Sequelize.DataTypes);
 db.ExcuseRequest = require('./ExcuseRequest')(sequelize, Sequelize.DataTypes);
+db.Announcement = require('./Announcement')(sequelize, Sequelize.DataTypes);
 
 // Define associations
 Object.keys(db).forEach(modelName => {

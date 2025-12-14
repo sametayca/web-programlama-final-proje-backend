@@ -128,6 +128,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'reviewedBy',
       as: 'reviewedExcuseRequests'
     });
+    User.hasMany(models.Announcement, {
+      foreignKey: 'authorId',
+      as: 'announcements'
+    });
   };
 
   User.prototype.comparePassword = async function(candidatePassword) {
