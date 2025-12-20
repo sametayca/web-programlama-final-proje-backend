@@ -5,11 +5,14 @@ const { body, param, query } = require('express-validator');
 const validateRequest = require('../middleware/validateRequest');
 const authGuard = require('../middleware/auth');
 const roleGuard = require('../middleware/roleGuard');
+const { cacheMiddleware, invalidateCache } = require('../middleware/cache');
 const { Op } = require('sequelize');
 
 // Get all courses (with pagination, filtering, search)
+// Cache for 30 minutes (1800 seconds)
 router.get(
   '/',
+  cacheMiddleware(1800),
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
@@ -127,10 +130,12 @@ router.get(
 );
 
 // Create course (Admin only)
+// Invalidate course cache after creation
 router.post(
   '/',
   authGuard,
   roleGuard('admin'),
+  invalidateCache(['cache:GET:/api/v1/courses:*']),
   [
     body('code').notEmpty().withMessage('Course code is required'),
     body('name').notEmpty().withMessage('Course name is required'),

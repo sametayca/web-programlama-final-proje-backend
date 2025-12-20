@@ -1,12 +1,23 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan');
 const { sequelize } = require('./models');
 const errorHandler = require('./middleware/errorHandler');
 const routes = require('./routes');
+const { swaggerUi, specs } = require('./config/swagger');
+const logger = require('./config/logger');
+const { apiLimiter } = require('./middleware/rateLimiter');
+const { initRedis, closeRedis } = require('./config/redis');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Logging middleware
+app.use(morgan('combined', { stream: logger.stream }));
+
+// Rate limiting for all API routes
+app.use('/api/', apiLimiter);
 
 // Middleware
 // Allow both localhost and local IP for mobile device access
@@ -34,6 +45,12 @@ app.use(express.urlencoded({ extended: true }));
 // Static files for profile pictures
 app.use('/uploads', express.static('uploads'));
 
+// Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Akıllı Kampüs API Docs'
+}));
+
 // Routes
 app.use('/api', routes);
 
@@ -49,7 +66,11 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     await sequelize.authenticate();
+    logger.info('✅ Database connection established successfully.');
     console.log('✅ Database connection established successfully.');
+
+    // Initialize Redis (optional)
+    await initRedis();
     
     // Run migrations in production
     if (process.env.NODE_ENV === 'production') {
@@ -85,8 +106,12 @@ const startServer = async () => {
     // Only start server if not in test environment
     if (process.env.NODE_ENV !== 'test') {
       app.listen(PORT, () => {
+        logger.info(`🚀 Server is running on port ${PORT}`);
+        logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+        logger.info(`📚 API Docs: http://localhost:${PORT}/api-docs`);
         console.log(`🚀 Server is running on port ${PORT}`);
         console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
         
         // Start background jobs
         if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
@@ -96,12 +121,26 @@ const startServer = async () => {
       });
     }
   } catch (error) {
+    logger.error('❌ Unable to start server:', error);
     console.error('❌ Unable to start server:', error);
     if (process.env.NODE_ENV !== 'test') {
       process.exit(1);
     }
   }
 };
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM signal received: closing HTTP server');
+  await closeRedis();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT signal received: closing HTTP server');
+  await closeRedis();
+  process.exit(0);
+});
 
 // Only start server if this file is run directly (not in tests)
 if (require.main === module) {

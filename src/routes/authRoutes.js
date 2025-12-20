@@ -4,8 +4,151 @@ const authService = require('../services/authService');
 const authGuard = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const validateRequest = require('../middleware/validateRequest');
+const { authLimiter, registerLimiter, passwordResetLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Register a new user
+ *     description: Create a new user account with email verification
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - firstName
+ *               - lastName
+ *               - role
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [student, faculty, admin, staff]
+ *               departmentId:
+ *                 type: string
+ *                 format: uuid
+ *               enrollmentYear:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: User login
+ *     description: Authenticate user and return JWT tokens
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     token:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /auth/profile:
+ *   get:
+ *     tags: [Authentication]
+ *     summary: Get user profile
+ *     description: Retrieve authenticated user's profile information
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 
 // Custom password validation
 const passwordValidation = body('password')
@@ -48,7 +191,7 @@ const updateProfileValidation = [
 // @route   POST /api/auth/register
 // @desc    Register new user
 // @access  Public
-router.post('/register', registerValidation, validateRequest, async (req, res, next) => {
+router.post('/register', registerLimiter, registerValidation, validateRequest, async (req, res, next) => {
   try {
     const user = await authService.register(req.body);
     res.status(201).json({
@@ -95,7 +238,7 @@ router.get('/verify-email', async (req, res, next) => {
 // @route   POST /api/auth/login
 // @desc    Login user
 // @access  Public
-router.post('/login', loginValidation, validateRequest, async (req, res, next) => {
+router.post('/login', authLimiter, loginValidation, validateRequest, async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
@@ -147,7 +290,7 @@ router.post('/logout', authGuard, async (req, res, next) => {
 // @route   POST /api/auth/forgot-password
 // @desc    Request password reset
 // @access  Public
-router.post('/forgot-password', forgotPasswordValidation, validateRequest, async (req, res, next) => {
+router.post('/forgot-password', passwordResetLimiter, forgotPasswordValidation, validateRequest, async (req, res, next) => {
   try {
     const { email } = req.body;
     const result = await authService.forgotPassword(email);
