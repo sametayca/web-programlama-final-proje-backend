@@ -441,109 +441,19 @@ class SchedulingService {
     });
 
     // Transform to schedule format
+    // NOTE: Always auto-generate schedule for better distribution
+    // Ignore existing Schedule table records to ensure even distribution
     const schedule = [];
-    const coursesWithSchedule = [];
     const coursesWithoutSchedule = [];
     
-    // Separate courses with and without schedules
+    // Collect all enrollments for auto-generation
     for (const enrollment of filteredEnrollments) {
       const section = enrollment.section;
       if (!section) continue;
       
-      // Try to get schedule from Schedule table first
-      if (section.schedules && section.schedules.length > 0) {
-        for (const sched of section.schedules) {
-          schedule.push({
-            courseCode: section.course.code,
-            courseName: section.course.name,
-            credits: section.course.credits,
-            sectionNumber: section.sectionNumber,
-            instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
-            classroomName: sched.classroom ? sched.classroom.roomNumber : (section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş'),
-            building: sched.classroom ? sched.classroom.building : (section.classroom ? section.classroom.building : ''),
-            day: sched.day,
-            startTime: sched.startTime,
-            endTime: sched.endTime
-          });
-        }
-        coursesWithSchedule.push(enrollment);
-      } 
-      // If no Schedule records, try to get from scheduleJson
-      else if (section.scheduleJson) {
-        let scheduleData = [];
-        
-        // Handle different scheduleJson formats
-        if (Array.isArray(section.scheduleJson)) {
-          scheduleData = section.scheduleJson;
-        } else if (typeof section.scheduleJson === 'object') {
-          // Could be { schedule: [...] } or { Monday: [...], Tuesday: [...] }
-          if (section.scheduleJson.schedule && Array.isArray(section.scheduleJson.schedule)) {
-            scheduleData = section.scheduleJson.schedule;
-          } else {
-            // Object with day keys (e.g., { Monday: [{ startTime, endTime }] })
-            const dayMap = {
-              'Monday': 'Monday',
-              'Tuesday': 'Tuesday',
-              'Wednesday': 'Wednesday',
-              'Thursday': 'Thursday',
-              'Friday': 'Friday',
-              'Saturday': 'Saturday',
-              'Sunday': 'Sunday',
-              'Pazartesi': 'Monday',
-              'Salı': 'Tuesday',
-              'Çarşamba': 'Wednesday',
-              'Perşembe': 'Thursday',
-              'Cuma': 'Friday',
-              'Cumartesi': 'Saturday',
-              'Pazar': 'Sunday'
-            };
-            
-            for (const dayKey in section.scheduleJson) {
-              const daySlots = section.scheduleJson[dayKey];
-              if (Array.isArray(daySlots)) {
-                const mappedDay = dayMap[dayKey] || dayKey;
-                for (const slot of daySlots) {
-                  scheduleData.push({
-                    day: mappedDay,
-                    startTime: slot.startTime || slot.start || '09:00',
-                    endTime: slot.endTime || slot.end || '11:00'
-                  });
-                }
-              }
-            }
-          }
-        }
-        
-        if (scheduleData.length > 0) {
-          for (const sched of scheduleData) {
-            // Normalize day field - handle different possible field names
-            let day = sched.day || sched.dayOfWeek || sched.days;
-            if (!day || day === 'days') {
-              day = 'Monday'; // Default fallback
-            }
-            
-            schedule.push({
-              courseCode: section.course.code,
-              courseName: section.course.name,
-              credits: section.course.credits,
-              sectionNumber: section.sectionNumber,
-              instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
-              classroomName: section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş',
-              building: section.classroom ? section.classroom.building : '',
-              day: day,
-              startTime: sched.startTime || sched.start || '09:00',
-              endTime: sched.endTime || sched.end || '11:00'
-            });
-          }
-          coursesWithSchedule.push(enrollment);
-        } else {
-          coursesWithoutSchedule.push(enrollment);
-        }
-      }
-      // If no schedule at all, add to list for auto-generation
-      else {
-        coursesWithoutSchedule.push(enrollment);
-      }
+      // Always add to auto-generate list for even distribution
+      // Skip Schedule table and scheduleJson - we'll auto-generate everything
+      coursesWithoutSchedule.push(enrollment);
     }
 
     // Auto-generate schedule for courses without schedule
