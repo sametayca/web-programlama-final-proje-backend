@@ -373,14 +373,21 @@ class SchedulingService {
    * @returns {Promise<Array>}
    */
   async getMySchedule(studentId, semester, year) {
-    // Get student's enrollments
+    // Convert semester format (Fall -> fall)
+    const semesterLower = semester ? semester.toLowerCase() : 'fall';
+    const yearInt = parseInt(year);
+    
+    // Get student's enrollments (without strict semester/year filter in where clause)
     const enrollments = await Enrollment.findAll({
-      where: { studentId },
+      where: { 
+        studentId,
+        status: 'enrolled'
+      },
       include: [
         {
           model: CourseSection,
           as: 'section',
-          where: { semester, year },
+          required: true, // Must have a section
           include: [
             {
               model: Course,
@@ -393,15 +400,26 @@ class SchedulingService {
               attributes: ['firstName', 'lastName']
             },
             {
+              model: Classroom,
+              as: 'classroom',
+              attributes: ['roomNumber', 'building'],
+              required: false
+            },
+            {
               model: Schedule,
               as: 'schedules',
-              where: { semester, year, isActive: true },
+              where: { 
+                semester: semesterLower, 
+                year: yearInt, 
+                isActive: true 
+              },
               required: false,
               include: [
                 {
                   model: Classroom,
                   as: 'classroom',
-                  attributes: ['name', 'building', 'capacity']
+                  attributes: ['roomNumber', 'building'],
+                  required: false
                 }
               ]
             }
@@ -410,12 +428,26 @@ class SchedulingService {
       ]
     });
 
+    // Filter enrollments by semester and year manually
+    const filteredEnrollments = enrollments.filter(enrollment => {
+      const section = enrollment.section;
+      if (!section || !section.isActive) return false;
+      
+      // Check if section matches semester and year
+      const sectionSemester = (section.semester || '').toLowerCase();
+      const sectionYear = parseInt(section.year);
+      
+      return sectionSemester === semesterLower && sectionYear === yearInt;
+    });
+
     // Transform to schedule format
     const schedule = [];
     
-    for (const enrollment of enrollments) {
+    for (const enrollment of filteredEnrollments) {
       const section = enrollment.section;
+      if (!section) continue;
       
+      // Try to get schedule from Schedule table first
       if (section.schedules && section.schedules.length > 0) {
         for (const sched of section.schedules) {
           schedule.push({
@@ -424,13 +456,89 @@ class SchedulingService {
             credits: section.course.credits,
             sectionNumber: section.sectionNumber,
             instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
-            classroomName: sched.classroom.name,
-            building: sched.classroom.building,
+            classroomName: sched.classroom ? sched.classroom.roomNumber : (section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş'),
+            building: sched.classroom ? sched.classroom.building : (section.classroom ? section.classroom.building : ''),
             day: sched.day,
             startTime: sched.startTime,
             endTime: sched.endTime
           });
         }
+      } 
+      // If no Schedule records, try to get from scheduleJson
+      else if (section.scheduleJson) {
+        let scheduleData = [];
+        
+        // Handle different scheduleJson formats
+        if (Array.isArray(section.scheduleJson)) {
+          scheduleData = section.scheduleJson;
+        } else if (typeof section.scheduleJson === 'object') {
+          // Could be { schedule: [...] } or { Monday: [...], Tuesday: [...] }
+          if (section.scheduleJson.schedule && Array.isArray(section.scheduleJson.schedule)) {
+            scheduleData = section.scheduleJson.schedule;
+          } else {
+            // Object with day keys (e.g., { Monday: [{ startTime, endTime }] })
+            const dayMap = {
+              'Monday': 'Monday',
+              'Tuesday': 'Tuesday',
+              'Wednesday': 'Wednesday',
+              'Thursday': 'Thursday',
+              'Friday': 'Friday',
+              'Saturday': 'Saturday',
+              'Sunday': 'Sunday',
+              'Pazartesi': 'Monday',
+              'Salı': 'Tuesday',
+              'Çarşamba': 'Wednesday',
+              'Perşembe': 'Thursday',
+              'Cuma': 'Friday',
+              'Cumartesi': 'Saturday',
+              'Pazar': 'Sunday'
+            };
+            
+            for (const dayKey in section.scheduleJson) {
+              const daySlots = section.scheduleJson[dayKey];
+              if (Array.isArray(daySlots)) {
+                const mappedDay = dayMap[dayKey] || dayKey;
+                for (const slot of daySlots) {
+                  scheduleData.push({
+                    day: mappedDay,
+                    startTime: slot.startTime || slot.start || '09:00',
+                    endTime: slot.endTime || slot.end || '11:00'
+                  });
+                }
+              }
+            }
+          }
+        }
+        
+        for (const sched of scheduleData) {
+          schedule.push({
+            courseCode: section.course.code,
+            courseName: section.course.name,
+            credits: section.course.credits,
+            sectionNumber: section.sectionNumber,
+            instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
+            classroomName: section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş',
+            building: section.classroom ? section.classroom.building : '',
+            day: sched.day || sched.dayOfWeek || 'Monday',
+            startTime: sched.startTime || sched.start || '09:00',
+            endTime: sched.endTime || sched.end || '11:00'
+          });
+        }
+      }
+      // If no schedule at all, create a default one
+      else if (section.classroom) {
+        schedule.push({
+          courseCode: section.course.code,
+          courseName: section.course.name,
+          credits: section.course.credits,
+          sectionNumber: section.sectionNumber,
+          instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
+          classroomName: section.classroom.roomNumber,
+          building: section.classroom.building,
+          day: 'Monday',
+          startTime: '09:00',
+          endTime: '11:00'
+        });
       }
     }
 
@@ -441,6 +549,115 @@ class SchedulingService {
       if (dayDiff !== 0) return dayDiff;
       return a.startTime.localeCompare(b.startTime);
     });
+  }
+
+  /**
+   * Generate iCal format from schedule
+   * @param {Array} schedule
+   * @param {string} semester
+   * @param {number} year
+   * @returns {string}
+   */
+  generateIcal(schedule, semester, year) {
+    const dayMap = {
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6,
+      'Sunday': 0
+    };
+
+    // Get semester start and end dates (approximate)
+    const semesterStart = this.getSemesterStartDate(semester, year);
+    const semesterEnd = this.getSemesterEndDate(semester, year);
+
+    let ical = 'BEGIN:VCALENDAR\r\n';
+    ical += 'VERSION:2.0\r\n';
+    ical += 'PRODID:-//Smart Campus//Course Schedule//EN\r\n';
+    ical += 'CALSCALE:GREGORIAN\r\n';
+    ical += 'METHOD:PUBLISH\r\n';
+
+    // Generate events for each week in the semester
+    const currentDate = new Date(semesterStart);
+    while (currentDate <= semesterEnd) {
+      for (const item of schedule) {
+        const dayOfWeek = dayMap[item.day];
+        if (dayOfWeek === undefined) continue;
+
+        // Find the date for this day in current week
+        const eventDate = new Date(currentDate);
+        const currentDay = eventDate.getDay();
+        const diff = dayOfWeek - (currentDay === 0 ? 7 : currentDay);
+        eventDate.setDate(eventDate.getDate() + diff);
+
+        if (eventDate > semesterEnd) continue;
+
+        // Parse time
+        const [startHours, startMinutes] = (item.startTime || '09:00').split(':').map(Number);
+        const [endHours, endMinutes] = (item.endTime || '11:00').split(':').map(Number);
+
+        const start = new Date(eventDate);
+        start.setHours(startHours, startMinutes, 0, 0);
+
+        const end = new Date(eventDate);
+        end.setHours(endHours, endMinutes, 0, 0);
+
+        // Format dates for iCal (YYYYMMDDTHHMMSS)
+        const formatDate = (date) => {
+          return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        };
+
+        ical += 'BEGIN:VEVENT\r\n';
+        ical += `UID:${item.courseCode}-${item.day}-${formatDate(start)}\r\n`;
+        ical += `DTSTART:${formatDate(start)}\r\n`;
+        ical += `DTEND:${formatDate(end)}\r\n`;
+        ical += `SUMMARY:${item.courseCode} - ${item.courseName || ''}\r\n`;
+        ical += `DESCRIPTION:${item.instructorName || ''}\\n${item.classroomName || ''} (${item.building || ''})\r\n`;
+        ical += `LOCATION:${item.building || ''} ${item.classroomName || ''}\r\n`;
+        ical += `RRULE:FREQ=WEEKLY;UNTIL=${formatDate(semesterEnd)};BYDAY=${item.day.substring(0, 2).toUpperCase()}\r\n`;
+        ical += 'END:VEVENT\r\n';
+      }
+
+      // Move to next week
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
+
+    ical += 'END:VCALENDAR\r\n';
+    return ical;
+  }
+
+  /**
+   * Get semester start date
+   * @param {string} semester
+   * @param {number} year
+   * @returns {Date}
+   */
+  getSemesterStartDate(semester, year) {
+    if (semester.toLowerCase() === 'fall') {
+      return new Date(year, 8, 1); // September
+    } else if (semester.toLowerCase() === 'spring') {
+      return new Date(year, 1, 1); // February
+    } else {
+      return new Date(year, 5, 1); // June (Summer)
+    }
+  }
+
+  /**
+   * Get semester end date
+   * @param {string} semester
+   * @param {number} year
+   * @returns {Date}
+   */
+  getSemesterEndDate(semester, year) {
+    if (semester.toLowerCase() === 'fall') {
+      return new Date(year, 11, 31); // December
+    } else if (semester.toLowerCase() === 'spring') {
+      return new Date(year, 5, 30); // June
+    } else {
+      return new Date(year, 7, 31); // August (Summer)
+    }
   }
 }
 

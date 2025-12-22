@@ -62,10 +62,26 @@ const errorHandler = (err, req, res, next) => {
     };
   }
 
+  // Turkish error messages for common errors
+  let errorMessage = error.message || 'Sunucu hatası';
+  
+  if (error.message === 'Invalid credentials') {
+    errorMessage = 'Geçersiz e-posta veya şifre';
+  } else if (error.message === 'User not found') {
+    errorMessage = 'Kullanıcı bulunamadı';
+  } else if (error.message === 'Email not verified') {
+    errorMessage = 'E-posta adresiniz doğrulanmamış. Lütfen e-postanızı kontrol edin.';
+  } else if (error.message.includes('password')) {
+    errorMessage = 'Şifre hatalı';
+  }
+
   res.status(error.statusCode || 500).json({
     success: false,
-    error: error.message || 'Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    error: errorMessage,
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack,
+      originalError: error.message 
+    })
   });
 };
 

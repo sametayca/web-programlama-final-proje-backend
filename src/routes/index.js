@@ -37,5 +37,9 @@ router.use('/v1/wallet', walletRoutes);
 router.use('/v1/events', eventRoutes);
 router.use('/v1/scheduling', schedulingRoutes);
 
+// Part 3 Routes - Classroom Reservations
+router.use('/v1/classrooms', require('./classroomRoutes'));
+router.use('/v1/reservations', require('./reservationRoutes'));
+
 module.exports = router;
 

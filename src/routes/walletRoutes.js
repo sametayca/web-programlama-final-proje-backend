@@ -177,6 +177,48 @@ router.get(
 
 /**
  * @swagger
+ * /api/v1/wallet/topup/dev:
+ *   post:
+ *     summary: Development mode wallet top-up (No Stripe required)
+ *     tags: [Wallet]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Add balance directly without Stripe (Development only)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 minimum: 50
+ *                 example: 100
+ *     responses:
+ *       200:
+ *         description: Balance added successfully
+ *       403:
+ *         description: Not available in production
+ */
+router.post(
+  '/topup/dev',
+  authGuard,
+  [
+    body('amount')
+      .isNumeric()
+      .withMessage('Amount must be a number')
+      .custom(value => value >= 50)
+      .withMessage('Minimum top-up amount is 50 TL'),
+    validateRequest
+  ],
+  walletController.devTopUp
+);
+
+/**
+ * @swagger
  * /api/v1/wallet/topup/webhook:
  *   post:
  *     summary: Stripe webhook endpoint

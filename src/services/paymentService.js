@@ -11,6 +11,11 @@ class PaymentService {
    * @returns {Promise<Object>}
    */
   async createTopUpIntent(studentId, amount) {
+    // Check if Stripe is configured
+    if (!stripe) {
+      throw new Error('Stripe payment service is not configured. Please contact administrator.');
+    }
+
     // Validate minimum amount
     if (amount < MINIMUM_TOPUP) {
       throw new Error(`Minimum top-up amount is ${MINIMUM_TOPUP} TL`);
@@ -60,6 +65,9 @@ class PaymentService {
    * @returns {Promise<Object>}
    */
   async getPaymentIntent(paymentIntentId) {
+    if (!stripe) {
+      throw new Error('Stripe payment service is not configured. Please contact administrator.');
+    }
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     return paymentIntent;
   }
@@ -71,6 +79,10 @@ class PaymentService {
    * @returns {Object}
    */
   constructWebhookEvent(payload, signature) {
+    if (!stripe) {
+      throw new Error('Stripe payment service is not configured. Please contact administrator.');
+    }
+
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     
     if (!webhookSecret) {

@@ -1,6 +1,8 @@
 const { Event, EventRegistration, User, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
+const notificationService = require('./notificationService');
+const logger = require('../config/logger');
 
 class EventService {
   /**
@@ -418,6 +420,93 @@ class EventService {
     });
 
     return registrations;
+  }
+
+  /**
+   * Cancel event registration
+   * @param {string} eventId - Event ID
+   * @param {string} registrationId - Registration ID
+   * @param {string} userId - User ID (must be the owner)
+   * @returns {Promise<Object>}
+   */
+  async cancelRegistration(eventId, registrationId, userId) {
+    const t = await sequelize.transaction();
+
+    try {
+      // Get registration with event
+      const registration = await EventRegistration.findOne({
+        where: {
+          id: registrationId,
+          eventId,
+          userId
+        },
+        include: [
+          {
+            model: Event,
+            as: 'event',
+            transaction: t,
+            lock: t.LOCK.UPDATE
+          }
+        ],
+        transaction: t
+      });
+
+      if (!registration) {
+        throw new Error('Registration not found');
+      }
+
+      // Check if already checked in
+      if (registration.checkedIn) {
+        throw new Error('Cannot cancel registration that has already been checked in');
+      }
+
+      // Check if event has started
+      if (new Date() >= new Date(registration.event.startDate)) {
+        throw new Error('Cannot cancel registration for an event that has already started');
+      }
+
+      // Update registration status
+      await registration.update({ status: 'cancelled' }, { transaction: t });
+
+      // Decrement registered count if it was approved
+      if (registration.status === 'approved') {
+        await registration.event.decrement('registeredCount', { transaction: t });
+      }
+
+      await t.commit();
+
+      // Get user and event info for notification
+      const registrationWithDetails = await EventRegistration.findByPk(registration.id, {
+        include: [
+          {
+            model: Event,
+            as: 'event',
+            attributes: ['id', 'title', 'startDate', 'endDate', 'location']
+          },
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'firstName', 'lastName', 'email']
+          }
+        ]
+      });
+
+      // Send cancellation notification (non-blocking)
+      if (registrationWithDetails.user && registrationWithDetails.event) {
+        const userName = `${registrationWithDetails.user.firstName} ${registrationWithDetails.user.lastName}`;
+        notificationService.sendEventRegistrationCancellation(
+          registrationWithDetails,
+          registrationWithDetails.event,
+          registrationWithDetails.user.email,
+          userName
+        ).catch(err => logger.error('Failed to send cancellation email:', err));
+      }
+
+      return registrationWithDetails;
+    } catch (error) {
+      await t.rollback();
+      throw error;
+    }
   }
 }
 

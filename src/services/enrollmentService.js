@@ -2,6 +2,7 @@ const prerequisiteService = require('./prerequisiteService');
 const scheduleConflictService = require('./scheduleConflictService');
 const { Enrollment, CourseSection } = require('../models');
 const { Op } = require('sequelize');
+const logger = require('../config/logger');
 
 class EnrollmentService {
   /**
@@ -38,15 +39,27 @@ class EnrollmentService {
       throw new Error('Section is full');
     }
 
-    // Check prerequisites
-    const prereqCheck = await prerequisiteService.checkPrerequisites(
-      section.courseId,
-      studentId
-    );
+    // Check prerequisites (skip in development mode)
+    if (process.env.NODE_ENV === 'production') {
+      const prereqCheck = await prerequisiteService.checkPrerequisites(
+        section.courseId,
+        studentId
+      );
 
-    if (!prereqCheck.satisfied) {
-      const missing = prereqCheck.missing.map(p => p.code || p.courseId).join(', ');
-      throw new Error(`Prerequisites not met. Missing: ${missing}`);
+      if (!prereqCheck.satisfied) {
+        const missing = prereqCheck.missing.map(p => p.code || p.courseId).join(', ');
+        throw new Error(`Prerequisites not met. Missing: ${missing}`);
+      }
+    } else {
+      // In development mode, only warn but allow enrollment
+      const prereqCheck = await prerequisiteService.checkPrerequisites(
+        section.courseId,
+        studentId
+      );
+      if (!prereqCheck.satisfied) {
+        const missing = prereqCheck.missing.map(p => p.code || p.courseId).join(', ');
+        logger.warn(`⚠️ Prerequisites not met for ${section.course.code}, but allowing enrollment in development mode. Missing: ${missing}`);
+      }
     }
 
     // Check schedule conflict

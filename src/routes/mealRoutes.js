@@ -44,6 +44,26 @@ const validateRequest = require('../middleware/validateRequest');
  *       401:
  *         description: Unauthorized
  */
+/**
+ * @swagger
+ * /api/v1/meals/cafeterias:
+ *   get:
+ *     summary: Get all active cafeterias
+ *     tags: [Meals]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of cafeterias
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  '/cafeterias',
+  authGuard,
+  mealController.getCafeterias
+);
+
 router.get(
   '/menus',
   authGuard,
@@ -54,6 +74,190 @@ router.get(
     validateRequest
   ],
   mealController.getMenus
+);
+
+/**
+ * @swagger
+ * /api/v1/meals/menus/{id}:
+ *   get:
+ *     summary: Get menu by ID
+ *     tags: [Meals]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Menu details
+ *       404:
+ *         description: Menu not found
+ */
+router.get(
+  '/menus/:id',
+  authGuard,
+  [
+    param('id').isUUID().withMessage('Valid menu ID is required'),
+    validateRequest
+  ],
+  mealController.getMenuById
+);
+
+/**
+ * @swagger
+ * /api/v1/meals/menus:
+ *   post:
+ *     summary: Create a meal menu (Admin/Staff only)
+ *     tags: [Meals]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - cafeteriaId
+ *               - mealType
+ *               - menuDate
+ *               - mainCourse
+ *             properties:
+ *               cafeteriaId:
+ *                 type: string
+ *                 format: uuid
+ *               mealType:
+ *                 type: string
+ *                 enum: [breakfast, lunch, dinner]
+ *               menuDate:
+ *                 type: string
+ *                 format: date
+ *               mainCourse:
+ *                 type: string
+ *               sideDish:
+ *                 type: string
+ *               soup:
+ *                 type: string
+ *               salad:
+ *                 type: string
+ *               dessert:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *               availableQuota:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Menu created successfully
+ *       403:
+ *         description: Forbidden - Not admin/staff
+ */
+router.post(
+  '/menus',
+  authGuard,
+  [
+    body('cafeteriaId').isUUID().withMessage('Valid cafeteria ID is required'),
+    body('mealType').isIn(['breakfast', 'lunch', 'dinner']).withMessage('Valid meal type is required'),
+    body('menuDate').isDate().withMessage('Valid menu date is required'),
+    body('mainCourse').notEmpty().withMessage('Main course is required'),
+    body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number'),
+    body('availableQuota').optional().isInt({ min: 1 }).withMessage('Available quota must be at least 1'),
+    validateRequest
+  ],
+  mealController.createMenu
+);
+
+/**
+ * @swagger
+ * /api/v1/meals/menus/{id}:
+ *   put:
+ *     summary: Update a meal menu (Admin/Staff only)
+ *     tags: [Meals]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mainCourse:
+ *                 type: string
+ *               sideDish:
+ *                 type: string
+ *               soup:
+ *                 type: string
+ *               salad:
+ *                 type: string
+ *               dessert:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *               availableQuota:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Menu updated successfully
+ *       403:
+ *         description: Forbidden - Not admin/staff
+ *       404:
+ *         description: Menu not found
+ */
+router.put(
+  '/menus/:id',
+  authGuard,
+  [
+    param('id').isUUID().withMessage('Valid menu ID is required'),
+    body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number'),
+    body('availableQuota').optional().isInt({ min: 1 }).withMessage('Available quota must be at least 1'),
+    validateRequest
+  ],
+  mealController.updateMenu
+);
+
+/**
+ * @swagger
+ * /api/v1/meals/menus/{id}:
+ *   delete:
+ *     summary: Delete a meal menu (Admin/Staff only)
+ *     tags: [Meals]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Menu deleted successfully
+ *       403:
+ *         description: Forbidden - Not admin/staff
+ *       404:
+ *         description: Menu not found
+ */
+router.delete(
+  '/menus/:id',
+  authGuard,
+  [
+    param('id').isUUID().withMessage('Valid menu ID is required'),
+    validateRequest
+  ],
+  mealController.deleteMenu
 );
 
 /**

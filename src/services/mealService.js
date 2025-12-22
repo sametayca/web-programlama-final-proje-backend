@@ -1,6 +1,7 @@
 const { MealMenu, MealReservation, Student, User, Cafeteria, Transaction, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
+const notificationService = require('./notificationService');
 
 class MealService {
   /**
@@ -40,7 +41,16 @@ class MealService {
       order: [['menuDate', 'ASC'], ['mealType', 'ASC']]
     });
 
-    return menus;
+    // Calculate available capacity for each menu
+    const menusWithCapacity = await Promise.all(menus.map(async (menu) => {
+      const menuData = menu.toJSON();
+      // Use availableQuota - reservedCount for availableCapacity
+      menuData.availableCapacity = Math.max(0, (menu.availableQuota || 0) - (menu.reservedCount || 0));
+      
+      return menuData;
+    }));
+
+    return menusWithCapacity;
   }
 
   /**
@@ -49,7 +59,7 @@ class MealService {
    * - Burslu öğrenciler: günde max 2 öğün
    * - Ücretli öğrenciler: wallet bakiyesi yeterli olmalı
    * - QR code UUID ile oluşturulur
-   * - Ücretli öğrencide para KULLANILDIĞINDA düşecek (rezervasyonda değil)
+   * - Ücretli öğrencide para REZERVASYONDA düşer
    * 
    * @param {string} studentId - User ID (student)
    * @param {string} menuId - Meal menu ID
@@ -69,16 +79,19 @@ class MealService {
         throw new Error('Student profile not found');
       }
 
-      // Get menu details
+      // Get menu details (without include for lock to work)
       const menu = await MealMenu.findByPk(menuId, {
-        include: [
-          {
-            model: Cafeteria,
-            as: 'cafeteria'
-          }
-        ],
         transaction: t,
         lock: t.LOCK.UPDATE // Row-level lock for ACID
+      });
+
+      if (!menu || !menu.isActive) {
+        throw new Error('Menu not found or inactive');
+      }
+
+      // Get cafeteria separately if needed
+      const cafeteria = await Cafeteria.findByPk(menu.cafeteriaId, {
+        transaction: t
       });
 
       if (!menu || !menu.isActive) {
@@ -140,12 +153,32 @@ class MealService {
         throw new Error('You have already reserved this meal');
       }
 
-      // For non-scholarship students, check wallet balance
-      // NOTE: Money will be deducted when meal is USED, not at reservation
+      // For non-scholarship students, check wallet balance and deduct immediately
+      let newBalance = parseFloat(student.walletBalance || 0);
+      const mealPrice = parseFloat(menu.price || 0);
+      
       if (!student.isScholarship) {
-        if (student.walletBalance < menu.price) {
-          throw new Error(`Insufficient wallet balance. Required: ${menu.price}, Available: ${student.walletBalance}`);
+        if (newBalance < mealPrice) {
+          throw new Error(`Insufficient wallet balance. Required: ${mealPrice.toFixed(2)}, Available: ${newBalance.toFixed(2)}`);
         }
+
+        // Deduct money from wallet immediately
+        newBalance = newBalance - mealPrice;
+        await student.update({
+          walletBalance: newBalance
+        }, { transaction: t });
+
+        // Create transaction record
+        await Transaction.create({
+          studentId,
+          type: 'meal_payment',
+          amount: mealPrice,
+          balanceBefore: parseFloat(student.walletBalance || 0),
+          balanceAfter: newBalance,
+          description: `Payment for ${menu.mealType} - ${menu.mainCourse}`,
+          referenceId: null, // Will be updated after reservation is created
+          referenceType: 'meal_reservation'
+        }, { transaction: t });
       }
 
       // Generate QR code (UUID)
@@ -158,8 +191,29 @@ class MealService {
         qrCode,
         status: 'pending',
         isScholarshipMeal: student.isScholarship,
-        amountPaid: student.isScholarship ? 0 : menu.price // Will be charged when used
+        amountPaid: student.isScholarship ? 0 : mealPrice // Already charged
       }, { transaction: t });
+
+      // Update transaction with reservation ID (find the most recent one for this student)
+      if (!student.isScholarship) {
+        const latestTransaction = await Transaction.findOne({
+          where: {
+            studentId,
+            type: 'meal_payment',
+            referenceId: null,
+            referenceType: 'meal_reservation'
+          },
+          order: [['createdAt', 'DESC']],
+          transaction: t
+        });
+
+        if (latestTransaction) {
+          await latestTransaction.update(
+            { referenceId: reservation.id },
+            { transaction: t }
+          );
+        }
+      }
 
       // Increment reserved count
       await menu.increment('reservedCount', { transaction: t });
@@ -179,9 +233,24 @@ class MealService {
                 as: 'cafeteria'
               }
             ]
+          },
+          {
+            model: User,
+            as: 'student',
+            attributes: ['id', 'firstName', 'lastName', 'email']
           }
         ]
       });
+
+      // Send notification (non-blocking)
+      if (reservationWithDetails.student) {
+        const userName = `${reservationWithDetails.student.firstName} ${reservationWithDetails.student.lastName}`;
+        notificationService.sendMealReservationConfirmation(
+          reservationWithDetails,
+          reservationWithDetails.student.email,
+          userName
+        ).catch(err => logger.error('Failed to send reservation confirmation email:', err));
+      }
 
       return reservationWithDetails;
     } catch (error) {
@@ -205,12 +274,6 @@ class MealService {
           id: reservationId,
           studentId
         },
-        include: [
-          {
-            model: MealMenu,
-            as: 'menu'
-          }
-        ],
         transaction: t,
         lock: t.LOCK.UPDATE
       });
@@ -223,8 +286,17 @@ class MealService {
         throw new Error(`Cannot cancel reservation with status: ${reservation.status}`);
       }
 
+      // Get menu separately
+      const menu = await MealMenu.findByPk(reservation.menuId, {
+        transaction: t
+      });
+
+      if (!menu) {
+        throw new Error('Menu not found');
+      }
+
       // Check if meal date is still in the future (allow cancel up to 1 hour before meal)
-      const menuDate = new Date(reservation.menu.menuDate);
+      const menuDate = new Date(menu.menuDate);
       const now = new Date();
       
       // Simple check: cannot cancel on the same day
@@ -232,13 +304,62 @@ class MealService {
         throw new Error('Cannot cancel reservation on the same day of the meal');
       }
 
+      // Get student profile for refund
+      const student = await Student.findOne({
+        where: { userId: studentId },
+        transaction: t
+      });
+
+      if (!student) {
+        throw new Error('Student profile not found');
+      }
+
+      // Refund money for non-scholarship students (if payment was made)
+      if (!reservation.isScholarshipMeal && reservation.amountPaid > 0) {
+        const currentBalance = parseFloat(student.walletBalance || 0);
+        const refundAmount = parseFloat(reservation.amountPaid || 0);
+        const newBalance = currentBalance + refundAmount;
+
+        // Update student wallet balance
+        await student.update({
+          walletBalance: newBalance
+        }, { transaction: t });
+
+        // Create refund transaction record
+        await Transaction.create({
+          studentId,
+          type: 'refund',
+          amount: refundAmount,
+          balanceBefore: currentBalance,
+          balanceAfter: newBalance,
+          description: `Refund for cancelled meal reservation - ${menu.mealType} - ${menu.mainCourse}`,
+          referenceId: reservation.id,
+          referenceType: 'meal_reservation'
+        }, { transaction: t });
+      }
+
       // Update reservation status
       await reservation.update({ status: 'cancelled' }, { transaction: t });
 
       // Decrement reserved count
-      await reservation.menu.decrement('reservedCount', { transaction: t });
+      await menu.decrement('reservedCount', { transaction: t });
 
       await t.commit();
+
+      // Get user info for notification
+      const user = await User.findByPk(studentId, {
+        attributes: ['id', 'firstName', 'lastName', 'email']
+      });
+
+      // Send cancellation notification (non-blocking)
+      if (user) {
+        const userName = `${user.firstName} ${user.lastName}`;
+        notificationService.sendMealReservationCancellation(
+          reservation.toJSON(),
+          user.email,
+          userName
+        ).catch(err => logger.error('Failed to send cancellation email:', err));
+      }
 
       return reservation;
     } catch (error) {
@@ -249,7 +370,7 @@ class MealService {
 
   /**
    * Use a meal reservation (scan QR code)
-   * This is where the money is deducted for non-scholarship students
+   * Money is already deducted at reservation time
    * 
    * @param {string} reservationId - Reservation ID
    * @param {string} qrCode - QR code to verify
@@ -264,22 +385,6 @@ class MealService {
           id: reservationId,
           qrCode
         },
-        include: [
-          {
-            model: MealMenu,
-            as: 'menu'
-          },
-          {
-            model: User,
-            as: 'student',
-            include: [
-              {
-                model: Student,
-                as: 'studentProfile'
-              }
-            ]
-          }
-        ],
         transaction: t,
         lock: t.LOCK.UPDATE
       });
@@ -292,8 +397,27 @@ class MealService {
         throw new Error(`Cannot use reservation with status: ${reservation.status}`);
       }
 
+      // Get menu separately
+      const menu = await MealMenu.findByPk(reservation.menuId, {
+        transaction: t
+      });
+
+      if (!menu) {
+        throw new Error('Menu not found');
+      }
+
+      // Get student profile separately
+      const studentProfile = await Student.findOne({
+        where: { userId: reservation.studentId },
+        transaction: t
+      });
+
+      if (!studentProfile) {
+        throw new Error('Student profile not found');
+      }
+
       // Check if meal is for today
-      const menuDate = new Date(reservation.menu.menuDate);
+      const menuDate = new Date(menu.menuDate);
       const today = new Date();
       menuDate.setHours(0, 0, 0, 0);
       today.setHours(0, 0, 0, 0);
@@ -302,37 +426,7 @@ class MealService {
         throw new Error('This reservation is not valid for today');
       }
 
-      const studentProfile = reservation.student.studentProfile;
-
-      // Deduct money for non-scholarship students
-      if (!reservation.isScholarshipMeal) {
-        const currentBalance = parseFloat(studentProfile.walletBalance);
-        const mealPrice = parseFloat(reservation.menu.price);
-
-        if (currentBalance < mealPrice) {
-          throw new Error('Insufficient wallet balance');
-        }
-
-        const newBalance = currentBalance - mealPrice;
-
-        // Update student wallet balance
-        await studentProfile.update({
-          walletBalance: newBalance
-        }, { transaction: t });
-
-        // Create transaction record
-        await Transaction.create({
-          studentId: reservation.studentId,
-          type: 'meal_payment',
-          amount: mealPrice,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
-          description: `Payment for ${reservation.menu.mealType} - ${reservation.menu.mainCourse}`,
-          referenceId: reservation.id,
-          referenceType: 'meal_reservation'
-        }, { transaction: t });
-      }
-
+      // Money is already deducted at reservation time, just mark as used
       // Mark reservation as used
       await reservation.update({
         status: 'used',
@@ -421,6 +515,98 @@ class MealService {
     });
 
     return transactions;
+  }
+
+  /**
+   * Get all active cafeterias
+   * @returns {Promise<Array>}
+   */
+  async getCafeterias() {
+    const cafeterias = await Cafeteria.findAll({
+      where: { isActive: true },
+      attributes: ['id', 'name', 'location', 'capacity', 'openingTime', 'closingTime'],
+      order: [['name', 'ASC']]
+    });
+
+    return cafeterias;
+  }
+
+  /**
+   * Get menu by ID
+   * @param {string} menuId
+   * @returns {Promise<Object>}
+   */
+  async getMenuById(menuId) {
+    const menu = await MealMenu.findByPk(menuId, {
+      include: [
+        {
+          model: Cafeteria,
+          as: 'cafeteria',
+          attributes: ['id', 'name', 'location']
+        }
+      ]
+    });
+
+    if (!menu) {
+      throw new Error('Menu not found');
+    }
+
+    const menuData = menu.toJSON();
+    menuData.availableCapacity = Math.max(0, (menu.availableQuota || 0) - (menu.reservedCount || 0));
+    
+    return menuData;
+  }
+
+  /**
+   * Create a new meal menu
+   * @param {Object} menuData
+   * @returns {Promise<Object>}
+   */
+  async createMenu(menuData) {
+    const menu = await MealMenu.create(menuData);
+    return await this.getMenuById(menu.id);
+  }
+
+  /**
+   * Update a meal menu
+   * @param {string} menuId
+   * @param {Object} updateData
+   * @returns {Promise<Object>}
+   */
+  async updateMenu(menuId, updateData) {
+    const menu = await MealMenu.findByPk(menuId);
+    
+    if (!menu) {
+      throw new Error('Menu not found');
+    }
+
+    // Check if menu has reservations
+    if (menu.reservedCount > 0 && (updateData.availableQuota !== undefined || updateData.price !== undefined)) {
+      throw new Error('Cannot modify menu with existing reservations');
+    }
+
+    await menu.update(updateData);
+    return await this.getMenuById(menuId);
+  }
+
+  /**
+   * Delete a meal menu (soft delete)
+   * @param {string} menuId
+   * @returns {Promise<void>}
+   */
+  async deleteMenu(menuId) {
+    const menu = await MealMenu.findByPk(menuId);
+    
+    if (!menu) {
+      throw new Error('Menu not found');
+    }
+
+    // Check if menu has reservations
+    if (menu.reservedCount > 0) {
+      throw new Error('Cannot delete menu with existing reservations');
+    }
+
+    await menu.update({ isActive: false });
   }
 }
 

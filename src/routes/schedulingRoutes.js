@@ -141,5 +141,47 @@ router.get(
   schedulingController.getMySchedule
 );
 
+/**
+ * @swagger
+ * /api/v1/scheduling/my-schedule/ical:
+ *   get:
+ *     summary: Export schedule as iCal file
+ *     tags: [Scheduling]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: semester
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: Fall
+ *       - in: query
+ *         name: year
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 2024
+ *     responses:
+ *       200:
+ *         description: iCal file download
+ *         content:
+ *           text/calendar:
+ *             schema:
+ *               type: string
+ *       403:
+ *         description: Forbidden - Only students
+ */
+router.get(
+  '/my-schedule/ical',
+  authGuard,
+  [
+    query('semester').notEmpty().withMessage('Semester is required'),
+    query('year').isInt({ min: 2020, max: 2050 }).withMessage('Valid year is required'),
+    validateRequest
+  ],
+  schedulingController.exportIcal
+);
+
 module.exports = router;
 

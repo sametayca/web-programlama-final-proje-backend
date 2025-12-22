@@ -49,6 +49,9 @@ db.EventRegistration = require('./EventRegistration')(sequelize, Sequelize.DataT
 // Part 3 Models - Course Scheduling
 db.Schedule = require('./Schedule')(sequelize, Sequelize.DataTypes);
 
+// Part 3 Models - Classroom Reservations
+db.ClassroomReservation = require('./ClassroomReservation')(sequelize, Sequelize.DataTypes);
+
 // Define associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {

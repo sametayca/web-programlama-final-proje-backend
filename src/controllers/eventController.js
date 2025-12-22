@@ -315,3 +315,36 @@ exports.getEventRegistrations = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Cancel event registration
+ * @route   DELETE /api/v1/events/:eventId/registrations/:regId
+ * @access  Private (Registration owner only)
+ */
+exports.cancelRegistration = async (req, res) => {
+  try {
+    const { eventId, regId } = req.params;
+    const userId = req.user.id;
+
+    const registration = await eventService.cancelRegistration(eventId, regId, userId);
+
+    logger.info(`Registration ${regId} cancelled by user ${userId}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Registration cancelled successfully',
+      data: registration
+    });
+  } catch (error) {
+    logger.error('Error in cancelRegistration:', error);
+
+    const statusCode = error.message.includes('not found') ? 404 :
+                      error.message.includes('already started') ? 400 :
+                      error.message.includes('checked in') ? 400 : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      error: error.message || 'Failed to cancel registration'
+    });
+  }
+};
+

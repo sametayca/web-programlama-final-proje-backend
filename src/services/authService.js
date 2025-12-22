@@ -236,14 +236,23 @@ class AuthService {
       ]
     });
 
-    if (!user || !user.isActive) {
-      throw new Error('Invalid credentials');
+    if (!user) {
+      console.log('❌ User not found:', email);
+      throw new Error('Geçersiz e-posta veya şifre');
+    }
+
+    if (!user.isActive) {
+      console.log('❌ User is not active:', email);
+      throw new Error('Hesabınız aktif değil. Lütfen yönetici ile iletişime geçin.');
     }
 
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      throw new Error('Invalid credentials');
+      console.log('❌ Invalid password for user:', email);
+      throw new Error('Geçersiz e-posta veya şifre');
     }
+    
+    console.log('✅ Login successful for user:', email, 'Role:', user.role);
 
     // Auto-enroll student in department courses if email verified but no enrollments yet
     if (user.role === 'student' && user.isEmailVerified && user.studentProfile?.departmentId) {

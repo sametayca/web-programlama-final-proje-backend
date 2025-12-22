@@ -403,5 +403,45 @@ router.get(
   eventController.getEventRegistrations
 );
 
+/**
+ * @swagger
+ * /api/v1/events/{eventId}/registrations/{regId}:
+ *   delete:
+ *     summary: Cancel event registration
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: path
+ *         name: regId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Registration cancelled successfully
+ *       400:
+ *         description: Cannot cancel (event started or already checked in)
+ *       404:
+ *         description: Registration not found
+ */
+router.delete(
+  '/:eventId/registrations/:regId',
+  authGuard,
+  [
+    param('eventId').isUUID().withMessage('Invalid event ID'),
+    param('regId').isUUID().withMessage('Invalid registration ID'),
+    validateRequest
+  ],
+  eventController.cancelRegistration
+);
+
 module.exports = router;
 

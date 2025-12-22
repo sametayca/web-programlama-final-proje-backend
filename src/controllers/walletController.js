@@ -153,6 +153,99 @@ exports.getTransactions = async (req, res) => {
 };
 
 /**
+ * @desc    Development mode: Add balance directly without Stripe
+ * @route   POST /api/v1/wallet/topup/dev
+ * @access  Private (Student only) - Development only
+ */
+exports.devTopUp = async (req, res) => {
+  // Only allow in development mode
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({
+      success: false,
+      error: 'Development endpoint not available in production'
+    });
+  }
+
+  try {
+    const studentId = req.user.id;
+    const { amount } = req.body;
+
+    if (req.user.role !== 'student') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only students can top-up wallet'
+      });
+    }
+
+    if (!amount || typeof amount !== 'number' || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid amount is required'
+      });
+    }
+
+    if (amount < 50) {
+      return res.status(400).json({
+        success: false,
+        error: 'Minimum top-up amount is 50 TL'
+      });
+    }
+
+    // Get student
+    const student = await Student.findOne({
+      where: { userId: studentId }
+    });
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Student profile not found'
+      });
+    }
+
+    const balanceBefore = parseFloat(student.walletBalance);
+    const balanceAfter = balanceBefore + amount;
+
+    // Update balance
+    await student.update({
+      walletBalance: balanceAfter
+    });
+
+    // Create transaction record
+    await Transaction.create({
+      studentId: studentId,
+      type: 'deposit',
+      amount: amount,
+      balanceBefore: balanceBefore,
+      balanceAfter: balanceAfter,
+      description: `Development mode wallet top-up`,
+      referenceId: `dev-${Date.now()}`,
+      referenceType: 'development'
+    });
+
+    logger.info(`[DEV] Wallet topped up: Student ${studentId}, Amount: ${amount} TL`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Balance added successfully (Development mode)',
+      data: {
+        amount: amount,
+        balanceBefore: balanceBefore,
+        balanceAfter: balanceAfter,
+        currency: 'TRY',
+        mode: 'development'
+      }
+    });
+  } catch (error) {
+    logger.error('Error in devTopUp:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to add balance'
+    });
+  }
+};
+
+/**
  * @desc    Handle Stripe webhook
  * @route   POST /api/v1/wallet/topup/webhook
  * @access  Public (Stripe only)

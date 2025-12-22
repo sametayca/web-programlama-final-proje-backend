@@ -73,7 +73,9 @@ exports.getMySchedule = async (req, res) => {
       });
     }
 
-    const schedule = await schedulingService.getMySchedule(studentId, semester, parseInt(year));
+    // Convert semester to lowercase (Fall -> fall)
+    const semesterLower = semester.toLowerCase();
+    const schedule = await schedulingService.getMySchedule(studentId, semesterLower, parseInt(year));
 
     res.status(200).json({
       success: true,
@@ -85,6 +87,50 @@ exports.getMySchedule = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch schedule'
+    });
+  }
+};
+
+/**
+ * @desc    Export schedule as iCal
+ * @route   GET /api/v1/scheduling/my-schedule/ical
+ * @access  Private (Student only)
+ */
+exports.exportIcal = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const { semester, year } = req.query;
+
+    // Only students can export their schedule
+    if (req.user.role !== 'student') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only students can export schedules'
+      });
+    }
+
+    if (!semester || !year) {
+      return res.status(400).json({
+        success: false,
+        error: 'Semester and year are required'
+      });
+    }
+
+    // Convert semester to lowercase
+    const semesterLower = semester.toLowerCase();
+    const schedule = await schedulingService.getMySchedule(studentId, semesterLower, parseInt(year));
+    
+    // Generate iCal content
+    const icalContent = schedulingService.generateIcal(schedule, semester, year);
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="schedule-${semester}-${year}.ics"`);
+    res.send(icalContent);
+  } catch (error) {
+    logger.error('Error in exportIcal:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export schedule'
     });
   }
 };

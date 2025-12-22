@@ -53,15 +53,23 @@ class PrerequisiteService {
         continue;
       }
 
-      // Check if student has completed this prerequisite
+      // Check if student has completed or is enrolled in this prerequisite
+      // In development, we accept 'enrolled' status as well
       const enrollment = await Enrollment.findOne({
         where: {
           studentId,
           sectionId: { [Op.in]: sectionIds },
-          status: 'completed',
-          letterGrade: {
-            [Op.in]: ['A', 'B', 'C', 'D']
-          }
+          status: {
+            [Op.in]: process.env.NODE_ENV === 'production' 
+              ? ['completed'] 
+              : ['enrolled', 'completed']
+          },
+          // In production, require passing grade
+          ...(process.env.NODE_ENV === 'production' ? {
+            letterGrade: {
+              [Op.in]: ['A', 'B', 'C', 'D']
+            }
+          } : {})
         }
       });
 
