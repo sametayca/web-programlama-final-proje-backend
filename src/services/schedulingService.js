@@ -442,7 +442,10 @@ class SchedulingService {
 
     // Transform to schedule format
     const schedule = [];
+    const coursesWithSchedule = [];
+    const coursesWithoutSchedule = [];
     
+    // Separate courses with and without schedules
     for (const enrollment of filteredEnrollments) {
       const section = enrollment.section;
       if (!section) continue;
@@ -463,6 +466,7 @@ class SchedulingService {
             endTime: sched.endTime
           });
         }
+        coursesWithSchedule.push(enrollment);
       } 
       // If no Schedule records, try to get from scheduleJson
       else if (section.scheduleJson) {
@@ -510,34 +514,88 @@ class SchedulingService {
           }
         }
         
-        for (const sched of scheduleData) {
-          schedule.push({
-            courseCode: section.course.code,
-            courseName: section.course.name,
-            credits: section.course.credits,
-            sectionNumber: section.sectionNumber,
-            instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
-            classroomName: section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş',
-            building: section.classroom ? section.classroom.building : '',
-            day: sched.day || sched.dayOfWeek || 'Monday',
-            startTime: sched.startTime || sched.start || '09:00',
-            endTime: sched.endTime || sched.end || '11:00'
-          });
+        if (scheduleData.length > 0) {
+          for (const sched of scheduleData) {
+            schedule.push({
+              courseCode: section.course.code,
+              courseName: section.course.name,
+              credits: section.course.credits,
+              sectionNumber: section.sectionNumber,
+              instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
+              classroomName: section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş',
+              building: section.classroom ? section.classroom.building : '',
+              day: sched.day || sched.dayOfWeek || 'Monday',
+              startTime: sched.startTime || sched.start || '09:00',
+              endTime: sched.endTime || sched.end || '11:00'
+            });
+          }
+          coursesWithSchedule.push(enrollment);
+        } else {
+          coursesWithoutSchedule.push(enrollment);
         }
       }
-      // If no schedule at all, create a default one
-      else if (section.classroom) {
+      // If no schedule at all, add to list for auto-generation
+      else {
+        coursesWithoutSchedule.push(enrollment);
+      }
+    }
+
+    // Auto-generate schedule for courses without schedule
+    if (coursesWithoutSchedule.length > 0) {
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const timeSlots = [
+        { start: '08:00', end: '10:00' },
+        { start: '10:00', end: '12:00' },
+        { start: '13:00', end: '15:00' },
+        { start: '15:00', end: '17:00' }
+      ];
+      
+      // Track how many courses per day
+      const dayCounts = {
+        'Monday': 0,
+        'Tuesday': 0,
+        'Wednesday': 0,
+        'Thursday': 0,
+        'Friday': 0
+      };
+      
+      // Distribute courses across days (1-2 per day)
+      for (let i = 0; i < coursesWithoutSchedule.length; i++) {
+        const enrollment = coursesWithoutSchedule[i];
+        const section = enrollment.section;
+        if (!section) continue;
+        
+        // Find a day with less than 2 courses
+        let selectedDay = null;
+        let attempts = 0;
+        while (!selectedDay && attempts < 50) {
+          const randomDay = days[Math.floor(Math.random() * days.length)];
+          if (dayCounts[randomDay] < 2) {
+            selectedDay = randomDay;
+            dayCounts[randomDay]++;
+          }
+          attempts++;
+        }
+        
+        // If all days have 2 courses, just pick a random day
+        if (!selectedDay) {
+          selectedDay = days[Math.floor(Math.random() * days.length)];
+        }
+        
+        // Pick a random time slot
+        const timeSlot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
+        
         schedule.push({
           courseCode: section.course.code,
           courseName: section.course.name,
           credits: section.course.credits,
           sectionNumber: section.sectionNumber,
           instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
-          classroomName: section.classroom.roomNumber,
-          building: section.classroom.building,
-          day: 'Monday',
-          startTime: '09:00',
-          endTime: '11:00'
+          classroomName: section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş',
+          building: section.classroom ? section.classroom.building : '',
+          day: selectedDay,
+          startTime: timeSlot.start,
+          endTime: timeSlot.end
         });
       }
     }
