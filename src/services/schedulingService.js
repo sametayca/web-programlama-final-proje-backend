@@ -556,7 +556,7 @@ class SchedulingService {
         { start: '15:00', end: '17:00' }
       ];
       
-      // Track how many courses per day
+      // Track how many courses per day and used time slots per day
       const dayCounts = {
         'Monday': 0,
         'Tuesday': 0,
@@ -565,31 +565,57 @@ class SchedulingService {
         'Friday': 0
       };
       
-      // Distribute courses across days (1-2 per day)
+      const dayTimeSlots = {
+        'Monday': new Set(),
+        'Tuesday': new Set(),
+        'Wednesday': new Set(),
+        'Thursday': new Set(),
+        'Friday': new Set()
+      };
+      
+      // Distribute courses evenly across days using round-robin
       for (let i = 0; i < coursesWithoutSchedule.length; i++) {
         const enrollment = coursesWithoutSchedule[i];
         const section = enrollment.section;
         if (!section) continue;
         
-        // Find a day with less than 2 courses
-        let selectedDay = null;
-        let attempts = 0;
-        while (!selectedDay && attempts < 50) {
-          const randomDay = days[Math.floor(Math.random() * days.length)];
-          if (dayCounts[randomDay] < 2) {
-            selectedDay = randomDay;
-            dayCounts[randomDay]++;
+        // Round-robin: Find day with least courses
+        let selectedDay = days[0];
+        let minCount = dayCounts[days[0]];
+        
+        for (const day of days) {
+          if (dayCounts[day] < minCount) {
+            minCount = dayCounts[day];
+            selectedDay = day;
           }
-          attempts++;
         }
         
-        // If all days have 2 courses, just pick a random day
-        if (!selectedDay) {
-          selectedDay = days[Math.floor(Math.random() * days.length)];
+        // If multiple days have same count, prefer days with fewer time slots used
+        const candidates = days.filter(d => dayCounts[d] === minCount);
+        if (candidates.length > 1) {
+          selectedDay = candidates.reduce((minDay, day) => {
+            return dayTimeSlots[day].size < dayTimeSlots[minDay].size ? day : minDay;
+          }, candidates[0]);
         }
         
-        // Pick a random time slot
-        const timeSlot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
+        // Find an available time slot for this day
+        let timeSlot = null;
+        const availableSlots = timeSlots.filter(slot => {
+          const slotKey = `${slot.start}-${slot.end}`;
+          return !dayTimeSlots[selectedDay].has(slotKey);
+        });
+        
+        if (availableSlots.length > 0) {
+          timeSlot = availableSlots[Math.floor(Math.random() * availableSlots.length)];
+        } else {
+          // If all slots used, pick any random slot
+          timeSlot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
+        }
+        
+        // Mark this time slot as used for this day
+        const slotKey = `${timeSlot.start}-${timeSlot.end}`;
+        dayTimeSlots[selectedDay].add(slotKey);
+        dayCounts[selectedDay]++;
         
         schedule.push({
           courseCode: section.course.code,
