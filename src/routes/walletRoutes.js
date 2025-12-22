@@ -48,7 +48,7 @@ router.get('/balance', authGuard, walletController.getBalance);
  * @swagger
  * /api/v1/wallet/topup:
  *   post:
- *     summary: Create wallet top-up payment intent
+ *     summary: Add balance directly to wallet
  *     tags: [Wallet]
  *     security:
  *       - bearerAuth: []
@@ -68,7 +68,7 @@ router.get('/balance', authGuard, walletController.getBalance);
  *                 description: Amount to top-up in TL (minimum 50 TL)
  *     responses:
  *       200:
- *         description: Payment intent created successfully
+ *         description: Balance added successfully
  *         content:
  *           application/json:
  *             schema:
@@ -81,12 +81,11 @@ router.get('/balance', authGuard, walletController.getBalance);
  *                 data:
  *                   type: object
  *                   properties:
- *                     clientSecret:
- *                       type: string
- *                       description: Stripe client secret for frontend
- *                     paymentIntentId:
- *                       type: string
  *                     amount:
+ *                       type: number
+ *                     balanceBefore:
+ *                       type: number
+ *                     balanceAfter:
  *                       type: number
  *                     currency:
  *                       type: string
@@ -101,9 +100,9 @@ router.post(
   [
     body('amount')
       .isNumeric()
-      .withMessage('Amount must be a number')
-      .custom(value => value >= 50)
-      .withMessage('Minimum top-up amount is 50 TL'),
+      .withMessage('Tutar bir sayı olmalıdır')
+      .custom(value => value > 0)
+      .withMessage('Tutar 0\'dan büyük olmalıdır'),
     validateRequest
   ],
   walletController.createTopUp
@@ -179,11 +178,11 @@ router.get(
  * @swagger
  * /api/v1/wallet/topup/dev:
  *   post:
- *     summary: Development mode wallet top-up (No Stripe required)
+ *     summary: Direct wallet top-up (No Stripe required)
  *     tags: [Wallet]
  *     security:
  *       - bearerAuth: []
- *     description: Add balance directly without Stripe (Development only)
+ *     description: Add balance directly without payment gateway
  *     requestBody:
  *       required: true
  *       content:
@@ -200,8 +199,10 @@ router.get(
  *     responses:
  *       200:
  *         description: Balance added successfully
+ *       400:
+ *         description: Invalid amount or minimum not met
  *       403:
- *         description: Not available in production
+ *         description: Forbidden - Not a student
  */
 router.post(
   '/topup/dev',

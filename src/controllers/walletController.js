@@ -49,7 +49,7 @@ exports.getBalance = async (req, res) => {
 };
 
 /**
- * @desc    Create wallet top-up payment intent
+ * @desc    Add balance directly to wallet
  * @route   POST /api/v1/wallet/topup
  * @access  Private (Student only)
  */
@@ -58,38 +58,69 @@ exports.createTopUp = async (req, res) => {
     const studentId = req.user.id;
     const { amount } = req.body;
 
-    if (req.user.role !== 'student') {
-      return res.status(403).json({
-        success: false,
-        error: 'Only students can top-up wallet'
-      });
-    }
-
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
+    // Basic validation - just check if amount exists and is positive
+    if (!amount || amount <= 0) {
       return res.status(400).json({
         success: false,
-        error: 'Valid amount is required'
+        error: 'Geçerli bir tutar giriniz'
       });
     }
 
-    const paymentIntent = await paymentService.createTopUpIntent(studentId, amount);
+    // Get student
+    const student = await Student.findOne({
+      where: { userId: studentId }
+    });
 
-    logger.info(`Payment intent created: ${paymentIntent.paymentIntentId} for student ${studentId}`);
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Öğrenci profili bulunamadı'
+      });
+    }
+
+    const balanceBefore = parseFloat(student.walletBalance || 0);
+    const amountNum = parseFloat(amount);
+    const balanceAfter = balanceBefore + amountNum;
+
+    // Update balance
+    await student.update({
+      walletBalance: balanceAfter
+    });
+
+    // Try to create transaction record (don't fail if it errors)
+    try {
+      await Transaction.create({
+        studentId: studentId,
+        type: 'deposit',
+        amount: amountNum,
+        balanceBefore: balanceBefore,
+        balanceAfter: balanceAfter,
+        description: `Bakiye yükleme`,
+        referenceId: `topup-${Date.now()}`,
+        referenceType: 'direct'
+      });
+    } catch (txError) {
+      // Log but don't fail the request
+      logger.warn('Transaction record creation failed:', txError);
+    }
+
+    logger.info(`Wallet topped up: Student ${studentId}, Amount: ${amountNum} TL`);
 
     res.status(200).json({
       success: true,
-      message: 'Payment intent created successfully',
-      data: paymentIntent
+      message: 'Bakiye başarıyla eklendi',
+      data: {
+        amount: amountNum,
+        balanceBefore: balanceBefore,
+        balanceAfter: balanceAfter,
+        currency: 'TRY'
+      }
     });
   } catch (error) {
     logger.error('Error in createTopUp:', error);
-
-    const statusCode = error.message.includes('Minimum') ? 400 :
-                      error.message.includes('not found') ? 404 : 500;
-
-    res.status(statusCode).json({
+    res.status(500).json({
       success: false,
-      error: error.message || 'Failed to create payment intent'
+      error: 'Bakiye yükleme başarısız: ' + error.message
     });
   }
 };
@@ -153,18 +184,11 @@ exports.getTransactions = async (req, res) => {
 };
 
 /**
- * @desc    Development mode: Add balance directly without Stripe
+ * @desc    Add balance directly without Stripe
  * @route   POST /api/v1/wallet/topup/dev
- * @access  Private (Student only) - Development only
+ * @access  Private (Student only)
  */
 exports.devTopUp = async (req, res) => {
-  // Only allow in development mode
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({
-      success: false,
-      error: 'Development endpoint not available in production'
-    });
-  }
 
   try {
     const studentId = req.user.id;
@@ -218,22 +242,21 @@ exports.devTopUp = async (req, res) => {
       amount: amount,
       balanceBefore: balanceBefore,
       balanceAfter: balanceAfter,
-      description: `Development mode wallet top-up`,
-      referenceId: `dev-${Date.now()}`,
-      referenceType: 'development'
+      description: `Wallet top-up`,
+      referenceId: `topup-${Date.now()}`,
+      referenceType: 'direct'
     });
 
-    logger.info(`[DEV] Wallet topped up: Student ${studentId}, Amount: ${amount} TL`);
+    logger.info(`Wallet topped up: Student ${studentId}, Amount: ${amount} TL`);
 
     res.status(200).json({
       success: true,
-      message: 'Balance added successfully (Development mode)',
+      message: 'Bakiye başarıyla eklendi',
       data: {
         amount: amount,
         balanceBefore: balanceBefore,
         balanceAfter: balanceAfter,
-        currency: 'TRY',
-        mode: 'development'
+        currency: 'TRY'
       }
     });
   } catch (error) {
