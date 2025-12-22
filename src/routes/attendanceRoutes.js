@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { AttendanceSession, AttendanceRecord, CourseSection, User, ExcuseRequest } = require('../models');
+const { AttendanceSession, AttendanceRecord, CourseSection, User, ExcuseRequest, Course, Enrollment } = require('../models');
 const { body, param, query } = require('express-validator');
 const validateRequest = require('../middleware/validateRequest');
 const authGuard = require('../middleware/auth');
 const roleGuard = require('../middleware/roleGuard');
 const attendanceService = require('../services/attendanceService');
+const logger = require('../config/logger');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 
@@ -710,9 +711,9 @@ router.post(
   authGuard,
   roleGuard('student'),
   [
-    body('sessionId').isUUID().withMessage('Invalid session ID'),
-    body('reason').isLength({ min: 10, max: 1000 }).withMessage('Reason must be between 10 and 1000 characters'),
-    body('documentUrl').optional().isURL().withMessage('Invalid document URL'),
+    body('sessionId').isUUID().withMessage('Geçersiz oturum ID'),
+    body('reason').isLength({ min: 10, max: 1000 }).withMessage('Mazeret sebebi 10 ile 1000 karakter arasında olmalıdır'),
+    body('documentUrl').optional().isURL().withMessage('Geçersiz belge URL'),
     validateRequest
   ],
   async (req, res) => {
@@ -720,12 +721,39 @@ router.post(
       const { sessionId, reason, documentUrl } = req.body;
       const studentId = req.user.id;
 
-      // Check if session exists
-      const session = await AttendanceSession.findByPk(sessionId);
+      // Check if session exists and get section info
+      const session = await AttendanceSession.findByPk(sessionId, {
+        include: [{
+          model: CourseSection,
+          as: 'section',
+          include: [{
+            model: Course,
+            as: 'course',
+            attributes: ['id', 'code', 'name']
+          }]
+        }]
+      });
+      
       if (!session) {
         return res.status(404).json({
           success: false,
-          error: 'Attendance session not found'
+          error: 'Yoklama oturumu bulunamadı'
+        });
+      }
+
+      // Verify student is enrolled in this section
+      const enrollment = await Enrollment.findOne({
+        where: {
+          sectionId: session.sectionId,
+          studentId,
+          status: 'enrolled'
+        }
+      });
+
+      if (!enrollment) {
+        return res.status(403).json({
+          success: false,
+          error: 'Bu derse kayıtlı değilsiniz'
         });
       }
 
@@ -737,7 +765,7 @@ router.post(
       if (existingRequest) {
         return res.status(400).json({
           success: false,
-          error: 'Excuse request already exists for this session'
+          error: 'Bu oturum için zaten mazeret talebiniz mevcut'
         });
       }
 
@@ -749,15 +777,33 @@ router.post(
         status: 'pending'
       });
 
+      // Load full excuse request with relations for response
+      const fullRequest = await ExcuseRequest.findByPk(excuseRequest.id, {
+        include: [{
+          model: AttendanceSession,
+          as: 'session',
+          include: [{
+            model: CourseSection,
+            as: 'section',
+            include: [{
+              model: Course,
+              as: 'course',
+              attributes: ['id', 'code', 'name']
+            }]
+          }]
+        }]
+      });
+
       res.status(201).json({
         success: true,
-        message: 'Excuse request submitted successfully',
-        data: excuseRequest
+        message: `Mazeret talebiniz ${session.section.course.code} dersinin öğretim üyesine gönderildi`,
+        data: fullRequest
       });
     } catch (error) {
+      logger.error('Error creating excuse request:', error);
       res.status(500).json({
         success: false,
-        error: error.message
+        error: error.message || 'Mazeret talebi oluşturulamadı'
       });
     }
   }
