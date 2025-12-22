@@ -35,3 +35,5 @@ Yeni kullanıcı kaydedin, e-posta gelmeli!
 **Detaylı rehber:** `EMAIL_SETUP.md` dosyasına bakın.
 
 
+
+
