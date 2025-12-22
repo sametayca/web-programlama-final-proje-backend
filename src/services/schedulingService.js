@@ -516,6 +516,12 @@ class SchedulingService {
         
         if (scheduleData.length > 0) {
           for (const sched of scheduleData) {
+            // Normalize day field - handle different possible field names
+            let day = sched.day || sched.dayOfWeek || sched.days;
+            if (!day || day === 'days') {
+              day = 'Monday'; // Default fallback
+            }
+            
             schedule.push({
               courseCode: section.course.code,
               courseName: section.course.name,
@@ -524,7 +530,7 @@ class SchedulingService {
               instructorName: `${section.instructor.firstName} ${section.instructor.lastName}`,
               classroomName: section.classroom ? section.classroom.roomNumber : 'Belirtilmemiş',
               building: section.classroom ? section.classroom.building : '',
-              day: sched.day || sched.dayOfWeek || 'Monday',
+              day: day,
               startTime: sched.startTime || sched.start || '09:00',
               endTime: sched.endTime || sched.end || '11:00'
             });
