@@ -36,6 +36,19 @@ db.AttendanceRecord = require('./AttendanceRecord')(sequelize, Sequelize.DataTyp
 db.ExcuseRequest = require('./ExcuseRequest')(sequelize, Sequelize.DataTypes);
 db.Announcement = require('./Announcement')(sequelize, Sequelize.DataTypes);
 
+// Part 3 Models - Meal Reservation System
+db.Cafeteria = require('./Cafeteria')(sequelize, Sequelize.DataTypes);
+db.MealMenu = require('./MealMenu')(sequelize, Sequelize.DataTypes);
+db.MealReservation = require('./MealReservation')(sequelize, Sequelize.DataTypes);
+db.Transaction = require('./Transaction')(sequelize, Sequelize.DataTypes);
+
+// Part 3 Models - Event Management
+db.Event = require('./Event')(sequelize, Sequelize.DataTypes);
+db.EventRegistration = require('./EventRegistration')(sequelize, Sequelize.DataTypes);
+
+// Part 3 Models - Course Scheduling
+db.Schedule = require('./Schedule')(sequelize, Sequelize.DataTypes);
+
 // Define associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {

@@ -143,6 +143,22 @@ const options = {
       {
         name: 'Announcements',
         description: 'Campus announcements'
+      },
+      {
+        name: 'Meals',
+        description: 'Meal reservation system with wallet and QR code'
+      },
+      {
+        name: 'Wallet',
+        description: 'Student wallet and Stripe payment integration'
+      },
+      {
+        name: 'Events',
+        description: 'Event management and registration with QR check-in'
+      },
+      {
+        name: 'Scheduling',
+        description: 'Course scheduling with CSP backtracking algorithm'
       }
     ]
   },
@@ -152,6 +168,7 @@ const options = {
 const specs = swaggerJsdoc(options);
 
 module.exports = { swaggerUi, specs };
+
 
 
 

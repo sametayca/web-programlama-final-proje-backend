@@ -10,6 +10,12 @@ const enrollmentRoutes = require('./enrollmentRoutes');
 const gradeRoutes = require('./gradeRoutes');
 const attendanceRoutes = require('./attendanceRoutes');
 
+// Part 3 Routes - Meal Reservation System
+const mealRoutes = require('./mealRoutes');
+const walletRoutes = require('./walletRoutes');
+const eventRoutes = require('./eventRoutes');
+const schedulingRoutes = require('./schedulingRoutes');
+
 const router = express.Router();
 
 // Part 1 Routes (Legacy)
@@ -24,6 +30,12 @@ router.use('/v1/enrollments', enrollmentRoutes);
 router.use('/v1/grades', gradeRoutes);
 router.use('/v1/attendance', attendanceRoutes);
 router.use('/v1/announcements', require('./announcementRoutes'));
+
+// Part 3 Routes - Meal Reservation System
+router.use('/v1/meals', mealRoutes);
+router.use('/v1/wallet', walletRoutes);
+router.use('/v1/events', eventRoutes);
+router.use('/v1/scheduling', schedulingRoutes);
 
 module.exports = router;
 

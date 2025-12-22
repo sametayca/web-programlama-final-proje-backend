@@ -24,7 +24,11 @@ app.use('/api/', apiLimiter);
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3001',
   'http://localhost:3001',
-  'http://192.168.60.97:3001'
+  'http://localhost:3002',
+  'http://localhost:3000',
+  'http://192.168.60.97:3001',
+  'http://192.168.1.142:3002',
+  'http://172.18.16.1:3002'
 ].filter(Boolean);
 
 app.use(cors({
@@ -39,6 +43,10 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Stripe webhook needs raw body, so handle it before JSON parser
+app.use('/api/v1/wallet/topup/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

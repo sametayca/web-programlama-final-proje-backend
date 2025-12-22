@@ -132,6 +132,24 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'authorId',
       as: 'announcements'
     });
+    // Part 3 Associations - Meal Reservations
+    User.hasMany(models.MealReservation, {
+      foreignKey: 'studentId',
+      as: 'mealReservations'
+    });
+    User.hasMany(models.Transaction, {
+      foreignKey: 'studentId',
+      as: 'transactions'
+    });
+    // Part 3 Associations - Event Management
+    User.hasMany(models.Event, {
+      foreignKey: 'organizerId',
+      as: 'organizedEvents'
+    });
+    User.hasMany(models.EventRegistration, {
+      foreignKey: 'userId',
+      as: 'eventRegistrations'
+    });
   };
 
   User.prototype.comparePassword = async function(candidatePassword) {
