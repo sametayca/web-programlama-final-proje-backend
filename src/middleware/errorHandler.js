@@ -17,7 +17,7 @@ const errorHandler = (err, req, res, next) => {
   // Sequelize unique constraint error
   if (err.name === 'SequelizeUniqueConstraintError') {
     let message = 'Bu bilgi zaten kullanılıyor';
-    
+
     // More specific error messages
     if (err.errors && err.errors.length > 0) {
       const field = err.errors[0].path;
@@ -29,7 +29,7 @@ const errorHandler = (err, req, res, next) => {
         message = 'Bu e-posta adresi zaten kullanılıyor';
       }
     }
-    
+
     error = {
       statusCode: 400,
       message
@@ -64,7 +64,7 @@ const errorHandler = (err, req, res, next) => {
 
   // Turkish error messages for common errors
   let errorMessage = error.message || 'Sunucu hatası';
-  
+
   if (error.message === 'Invalid credentials') {
     errorMessage = 'Geçersiz e-posta veya şifre';
   } else if (error.message === 'User not found') {
@@ -78,10 +78,9 @@ const errorHandler = (err, req, res, next) => {
   res.status(error.statusCode || 500).json({
     success: false,
     error: errorMessage,
-    ...(process.env.NODE_ENV === 'development' && { 
-      stack: err.stack,
-      originalError: error.message 
-    })
+    stack: err.stack, // Debugging: Always show stack
+    originalError: error.message,
+    details: err.parent ? err.parent.message : null // Sequelize details
   });
 };
 

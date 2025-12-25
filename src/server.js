@@ -21,28 +21,8 @@ app.use('/api/', apiLimiter);
 
 // Middleware
 // Allow both localhost and local IP for mobile device access
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3001',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:3000',
-  'http://192.168.60.97:3001',
-  'http://192.168.1.142:3002',
-  'http://172.18.16.1:3002'
-].filter(Boolean);
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all for development
-    }
-  },
-  credentials: true
-}));
+// Enable CORS for all routes (implied by default options)
+app.use(cors());
 
 // Stripe webhook needs raw body, so handle it before JSON parser
 app.use('/api/v1/wallet/topup/webhook', express.raw({ type: 'application/json' }));
@@ -79,7 +59,7 @@ const startServer = async () => {
 
     // Initialize Redis (optional)
     await initRedis();
-    
+
     // Run migrations in production
     if (process.env.NODE_ENV === 'production') {
       try {
@@ -87,7 +67,7 @@ const startServer = async () => {
         console.log('🔄 Running database migrations...');
         execSync('npx sequelize-cli db:migrate', { stdio: 'inherit' });
         console.log('✅ Database migrations completed.');
-        
+
         // Run seeds after migrations (only if RUN_SEEDS is set to true)
         if (process.env.RUN_SEEDS === 'true') {
           try {
@@ -104,13 +84,13 @@ const startServer = async () => {
         // Continue even if migration fails (might already be up to date)
       }
     }
-    
+
     // Sync database in development
     if (process.env.NODE_ENV === 'development') {
       await sequelize.sync({ alter: true });
       console.log('✅ Database models synchronized.');
     }
-    
+
     // Only start server if not in test environment
     if (process.env.NODE_ENV !== 'test') {
       app.listen(PORT, () => {
@@ -120,7 +100,7 @@ const startServer = async () => {
         console.log(`🚀 Server is running on port ${PORT}`);
         console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
-        
+
         // Start background jobs
         if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
           const absenceWarningJob = require('./jobs/absenceWarningJob');
