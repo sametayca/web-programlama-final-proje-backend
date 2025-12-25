@@ -178,7 +178,7 @@ router.post(
   [
     body('title').notEmpty().withMessage('Title is required'),
     body('eventType')
-      .isIn(['seminar', 'workshop', 'conference', 'social', 'sports', 'cultural', 'other'])
+      .isIn(['seminar', 'workshop', 'conference', 'social', 'sports', 'cultural', 'other', 'academic', 'exam', 'holiday', 'registration', 'ceremony'])
       .withMessage('Invalid event type'),
     body('startDate').isISO8601().withMessage('Valid start date is required'),
     body('endDate').isISO8601().withMessage('Valid end date is required'),
