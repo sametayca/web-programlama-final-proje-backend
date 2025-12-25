@@ -8,8 +8,9 @@ const roleGuard = (...roles) => {
     }
 
     // Case-insensitive role check
+    // roles becomes [['admin']] if called as roleGuard(['admin']) due to ...roles
+    const allowedRoles = roles.flat().map(r => String(r).toLowerCase());
     const userRole = req.user.role ? req.user.role.toLowerCase() : '';
-    const allowedRoles = roles.map(r => r.toLowerCase());
 
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({
