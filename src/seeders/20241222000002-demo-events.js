@@ -100,6 +100,7 @@ module.exports = {
       imageUrl: 'https://example.com/software-conference.jpg',
       isActive: true,
       requiresApproval: true,
+      priority: 'normal',
       createdAt: new Date(),
       updatedAt: new Date()
     });
