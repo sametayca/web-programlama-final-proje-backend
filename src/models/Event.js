@@ -17,9 +17,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     eventType: {
-      type: DataTypes.ENUM('seminar', 'workshop', 'conference', 'social', 'sports', 'cultural', 'other'),
+      type: DataTypes.ENUM('seminar', 'workshop', 'conference', 'social', 'sports', 'cultural', 'academic', 'exam', 'holiday', 'registration', 'ceremony', 'other'),
       allowNull: false,
       defaultValue: 'other'
+    },
+    priority: {
+      type: DataTypes.ENUM('low', 'normal', 'high', 'urgent'),
+      defaultValue: 'normal',
+      allowNull: false
     },
     startDate: {
       type: DataTypes.DATE,
