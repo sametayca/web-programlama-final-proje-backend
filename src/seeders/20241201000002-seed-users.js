@@ -17,7 +17,7 @@ module.exports = {
       // Admin User
       {
         id: '660e8400-e29b-41d4-a716-446655440001',
-        email: 'admin@kampüs.edu.tr',
+        email: 'admin@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Admin',
         lastName: 'User',
@@ -277,11 +277,11 @@ module.exports = {
     await queryInterface.bulkDelete('faculty', {
       employeeNumber: ['BM00001', 'EE00001']
     }, {});
-    
+
     await queryInterface.bulkDelete('students', {
       studentNumber: ['BM240001', 'BM240002', 'EE240001', 'EE240002', 'ME240001']
     }, {});
-    
+
     await queryInterface.bulkDelete('users', {
       email: [
         'admin@kampüs.edu.tr',
