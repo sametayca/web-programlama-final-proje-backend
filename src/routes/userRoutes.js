@@ -154,7 +154,12 @@ router.get(
         }
       });
     } catch (error) {
-      next(error);
+      console.error('Get Users Error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: error.parent ? error.parent.message : null // Sequelize specific
+      });
     }
   }
 );
