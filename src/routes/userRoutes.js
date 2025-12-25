@@ -159,5 +159,44 @@ router.get(
   }
 );
 
+// @route   PUT /api/users/:id
+// @desc    Update user (Admin only)
+// @access  Private (Admin)
+router.put(
+  '/:id',
+  authGuard,
+  roleGuard(['admin']),
+  [
+    require('express-validator').param('id').isUUID().withMessage('Invalid user ID'),
+    require('express-validator').body('firstName').optional().trim().notEmpty(),
+    require('express-validator').body('lastName').optional().trim().notEmpty(),
+    require('express-validator').body('role').optional().isIn(['student', 'faculty', 'admin', 'staff']),
+    require('express-validator').body('isActive').optional().isBoolean(),
+    validateRequest
+  ],
+  async (req, res, next) => {
+    try {
+      const user = await User.findByPk(req.params.id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+
+      await user.update(req.body);
+
+      res.json({
+        success: true,
+        message: 'User updated successfully',
+        data: user
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 module.exports = router;
 
