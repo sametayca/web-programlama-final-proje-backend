@@ -31,6 +31,7 @@ module.exports = {
       imageUrl: 'https://example.com/ai-workshop.jpg',
       isActive: true,
       requiresApproval: false,
+      priority: 'normal',
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -53,6 +54,7 @@ module.exports = {
       imageUrl: 'https://example.com/blockchain-seminar.jpg',
       isActive: true,
       requiresApproval: false,
+      priority: 'normal',
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -75,6 +77,7 @@ module.exports = {
       imageUrl: 'https://example.com/spring-festival.jpg',
       isActive: true,
       requiresApproval: false,
+      priority: 'normal',
       createdAt: new Date(),
       updatedAt: new Date()
     });
@@ -87,8 +90,8 @@ module.exports = {
       title: 'Ulusal Yazılım Mühendisliği Konferansı',
       description: '3 günlük ulusal yazılım mühendisliği konferansı. Sektör liderleri ve akademisyenlerle networking fırsatı.',
       eventType: 'conference',
-      startDate: new Date(conference.setHours(9, 0, 0, 0)),
-      endDate: new Date(new Date(conference).setDate(conference.getDate() + 2).setHours(18, 0, 0, 0)),
+      startDate: new Date(new Date(conference).setHours(9, 0, 0, 0)),
+      endDate: new Date(new Date(new Date(conference).setDate(conference.getDate() + 2)).setHours(18, 0, 0, 0)),
       location: 'Kongre Merkezi',
       capacity: 200,
       registeredCount: 0,
@@ -119,6 +122,7 @@ module.exports = {
       imageUrl: 'https://example.com/basketball-tournament.jpg',
       isActive: true,
       requiresApproval: false,
+      priority: 'normal',
       createdAt: new Date(),
       updatedAt: new Date()
     });
