@@ -31,7 +31,7 @@ module.exports = {
       // Students (5 adet)
       {
         id: '660e8400-e29b-41d4-a716-446655440002',
-        email: 'student1@kampüs.edu.tr',
+        email: 'student1@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Ahmet',
         lastName: 'Yılmaz',
@@ -44,7 +44,7 @@ module.exports = {
       },
       {
         id: '660e8400-e29b-41d4-a716-446655440003',
-        email: 'student2@kampüs.edu.tr',
+        email: 'student2@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Ayşe',
         lastName: 'Demir',
@@ -57,7 +57,7 @@ module.exports = {
       },
       {
         id: '660e8400-e29b-41d4-a716-446655440004',
-        email: 'student3@kampüs.edu.tr',
+        email: 'student3@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Mehmet',
         lastName: 'Kaya',
@@ -70,7 +70,7 @@ module.exports = {
       },
       {
         id: '660e8400-e29b-41d4-a716-446655440005',
-        email: 'student4@kampüs.edu.tr',
+        email: 'student4@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Zeynep',
         lastName: 'Şahin',
@@ -83,7 +83,7 @@ module.exports = {
       },
       {
         id: '660e8400-e29b-41d4-a716-446655440006',
-        email: 'student5@kampüs.edu.tr',
+        email: 'student5@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Can',
         lastName: 'Özkan',
@@ -97,7 +97,7 @@ module.exports = {
       // Faculty (2 adet)
       {
         id: '660e8400-e29b-41d4-a716-446655440007',
-        email: 'faculty1@kampüs.edu.tr',
+        email: 'faculty1@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Prof. Dr.',
         lastName: 'Ali Veli',
@@ -110,7 +110,7 @@ module.exports = {
       },
       {
         id: '660e8400-e29b-41d4-a716-446655440008',
-        email: 'faculty2@kampüs.edu.tr',
+        email: 'faculty2@kampus.edu.tr',
         password: hashedPassword,
         firstName: 'Doç. Dr.',
         lastName: 'Fatma Nur',
@@ -284,14 +284,14 @@ module.exports = {
 
     await queryInterface.bulkDelete('users', {
       email: [
-        'admin@kampüs.edu.tr',
-        'student1@kampüs.edu.tr',
-        'student2@kampüs.edu.tr',
-        'student3@kampüs.edu.tr',
-        'student4@kampüs.edu.tr',
-        'student5@kampüs.edu.tr',
-        'faculty1@kampüs.edu.tr',
-        'faculty2@kampüs.edu.tr'
+        'admin@kampus.edu.tr',
+        'student1@kampus.edu.tr',
+        'student2@kampus.edu.tr',
+        'student3@kampus.edu.tr',
+        'student4@kampus.edu.tr',
+        'student5@kampus.edu.tr',
+        'faculty1@kampus.edu.tr',
+        'faculty2@kampus.edu.tr'
       ]
     }, {});
   }
