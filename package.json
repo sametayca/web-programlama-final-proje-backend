@@ -4,7 +4,7 @@
   "description": "Web Programlama Final Projesi - Backend",
   "main": "src/server.js",
   "scripts": {
-    "start": "npm run db:migrate && node src/server.js",
+    "start": "npm run db:migrate && npm run db:seed && node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "jest --coverage --forceExit --detectOpenHandles",
     "test:watch": "jest --watch",

@@ -104,7 +104,8 @@ class EventService {
       capacity,
       organizer,
       imageUrl,
-      requiresApproval
+      requiresApproval,
+      priority // Added priority
     } = eventData;
 
     // Validate dates
@@ -132,7 +133,8 @@ class EventService {
       imageUrl,
       requiresApproval: requiresApproval || false,
       isActive: true,
-      registeredCount: 0
+      registeredCount: 0,
+      priority: priority || 'normal' // Added priority
     });
 
     return event;
