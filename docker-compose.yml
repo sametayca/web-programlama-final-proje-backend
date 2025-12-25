@@ -18,6 +18,14 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:alpine
+    container_name: backend-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   backend:
     build: .
     container_name: backend-api
@@ -32,6 +40,8 @@ services:
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-this-in-production
       FRONTEND_URL: http://localhost:3001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "3000:3000"
     volumes:
@@ -41,8 +51,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     command: npm run dev
 
 volumes:
   postgres_data:
+  redis_data:
 

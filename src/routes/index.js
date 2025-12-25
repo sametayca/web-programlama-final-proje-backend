@@ -41,5 +41,8 @@ router.use('/v1/scheduling', schedulingRoutes);
 router.use('/v1/classrooms', require('./classroomRoutes'));
 router.use('/v1/reservations', require('./reservationRoutes'));
 
+// Part 4 Routes - Analytics
+router.use('/v1/analytics', require('./analyticsRoutes'));
+
 module.exports = router;
 
