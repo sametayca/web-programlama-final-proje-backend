@@ -79,6 +79,17 @@ exports.createEvent = async (req, res) => {
       });
     }
 
+    const { eventType } = req.body;
+    const academicTypes = ['academic', 'exam', 'holiday', 'registration', 'ceremony'];
+
+    // Only admin can create academic events
+    if (academicTypes.includes(eventType) && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only administrators can create academic calendar events'
+      });
+    }
+
     const event = await eventService.createEvent(req.body, userId);
 
     logger.info(`Event created: ${event.id} by user ${userId}`);
@@ -123,8 +134,8 @@ exports.updateEvent = async (req, res) => {
     logger.error('Error in updateEvent:', error);
 
     const statusCode = error.message.includes('not found') ? 404 :
-                      error.message.includes('Not authorized') ? 403 :
-                      error.message.includes('must be') ? 400 : 500;
+      error.message.includes('Not authorized') ? 403 :
+        error.message.includes('must be') ? 400 : 500;
 
     res.status(statusCode).json({
       success: false,
@@ -155,7 +166,7 @@ exports.deleteEvent = async (req, res) => {
     logger.error('Error in deleteEvent:', error);
 
     const statusCode = error.message.includes('not found') ? 404 :
-                      error.message.includes('Not authorized') ? 403 : 500;
+      error.message.includes('Not authorized') ? 403 : 500;
 
     res.status(statusCode).json({
       success: false,
@@ -187,9 +198,9 @@ exports.registerForEvent = async (req, res) => {
     logger.error('Error in registerForEvent:', error);
 
     const statusCode = error.message.includes('not found') ? 404 :
-                      error.message.includes('full') ? 409 :
-                      error.message.includes('already registered') ? 409 :
-                      error.message.includes('already started') ? 400 : 500;
+      error.message.includes('full') ? 409 :
+        error.message.includes('already registered') ? 409 :
+          error.message.includes('already started') ? 400 : 500;
 
     res.status(statusCode).json({
       success: false,
@@ -242,11 +253,11 @@ exports.checkInToEvent = async (req, res) => {
     logger.error('Error in checkInToEvent:', error);
 
     const statusCode = error.message.includes('not found') ? 404 :
-                      error.message.includes('invalid QR') ? 400 :
-                      error.message.includes('Already checked in') ? 409 :
-                      error.message.includes('not started') ? 400 :
-                      error.message.includes('ended') ? 400 :
-                      error.message.includes('status') ? 400 : 500;
+      error.message.includes('invalid QR') ? 400 :
+        error.message.includes('Already checked in') ? 409 :
+          error.message.includes('not started') ? 400 :
+            error.message.includes('ended') ? 400 :
+              error.message.includes('status') ? 400 : 500;
 
     res.status(statusCode).json({
       success: false,
@@ -306,7 +317,7 @@ exports.getEventRegistrations = async (req, res) => {
     logger.error('Error in getEventRegistrations:', error);
 
     const statusCode = error.message.includes('not found') ? 404 :
-                      error.message.includes('Not authorized') ? 403 : 500;
+      error.message.includes('Not authorized') ? 403 : 500;
 
     res.status(statusCode).json({
       success: false,
@@ -338,8 +349,8 @@ exports.cancelRegistration = async (req, res) => {
     logger.error('Error in cancelRegistration:', error);
 
     const statusCode = error.message.includes('not found') ? 404 :
-                      error.message.includes('already started') ? 400 :
-                      error.message.includes('checked in') ? 400 : 500;
+      error.message.includes('already started') ? 400 :
+        error.message.includes('checked in') ? 400 : 500;
 
     res.status(statusCode).json({
       success: false,
