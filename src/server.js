@@ -271,10 +271,35 @@ const startServer = async () => {
             await user.save();
           }
 
-          // --- FIX: CLEAR ALL PREVIOUS ASSIGNMENTS FOR THIS INSTRUCTOR ---
-          // This ensures Ali Veli (if he is faculty1) loses all other random courses
+          // --- FIX: HANDLE NOT-NULL CONSTRAINT ---
+          // Since we cannot set instructorId to null, we move old courses to a 'Placeholder' faculty
+          // Create/Get Placeholder
+          const [placeholder, _] = await User.findOrCreate({
+            where: { email: 'unassigned@kampus.edu.tr' },
+            defaults: {
+              password: 'Password123',
+              firstName: 'Unassigned',
+              lastName: 'Course',
+              role: 'faculty',
+              isEmailVerified: true,
+              isActive: true
+            }
+          });
+
+          // Ensure placeholder has a profile
+          const placeholderProfile = await Faculty.findOne({ where: { userId: placeholder.id } });
+          if (!placeholderProfile) {
+            await Faculty.create({
+              userId: placeholder.id,
+              departmentId: department.id, // Temporarily assign to same dept
+              employeeNumber: `TBD-${Date.now()}`,
+              title: 'lecturer'
+            });
+          }
+
+          // Move ALL existing sections of this user to the placeholder
           await CourseSection.update(
-            { instructorId: null },
+            { instructorId: placeholder.id },
             { where: { instructorId: user.id } }
           );
           // ---------------------------------------------------------------
