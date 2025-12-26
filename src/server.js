@@ -60,6 +60,74 @@ app.use(express.urlencoded({ extended: true }));
 // Static files for profile pictures
 app.use('/uploads', express.static('uploads'));
 
+// --- EMERGENCY CLEANUP ROUTE (TEMPORARY) ---
+app.get('/api/admin/forced-cleanup-enrollments', async (req, res) => {
+  try {
+    const { Student, Enrollment, CourseSection, Course, Department } = require('./models');
+
+    // 1. Get all students with their departments
+    const students = await Student.findAll({
+      include: [{ model: Department, as: 'department' }]
+    });
+
+    let removedCount = 0;
+    let resetCount = 0;
+
+    for (const student of students) {
+      if (!student.departmentId) continue;
+
+      const enrollments = await Enrollment.findAll({
+        where: { studentId: student.userId },
+        include: [{
+          model: CourseSection,
+          as: 'section',
+          include: [{ model: Course, as: 'course' }]
+        }]
+      });
+
+      for (const enrollment of enrollments) {
+        if (!enrollment.section || !enrollment.section.course) {
+          await enrollment.destroy();
+          removedCount++;
+          continue;
+        }
+
+        const courseDepartmentId = enrollment.section.course.departmentId;
+
+        // Check Department Mismatch
+        if (courseDepartmentId !== student.departmentId) {
+          await enrollment.destroy();
+          removedCount++;
+        } else {
+          // Valid Department - Reset Grades
+          if (enrollment.midtermGrade !== null || enrollment.finalGrade !== null) {
+            await enrollment.update({
+              midtermGrade: null,
+              finalGrade: null,
+              letterGrade: null,
+              gradePoint: null
+            });
+            resetCount++;
+          }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Cleanup completed successfully',
+      stats: {
+        removedInvalidEnrollments: removedCount,
+        resetGrades: resetCount
+      }
+    });
+  } catch (error) {
+    console.error('Cleanup failed:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+// ---------------------------------------------
+
 // Swagger API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
   customCss: '.swagger-ui .topbar { display: none }',
