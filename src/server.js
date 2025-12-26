@@ -194,6 +194,102 @@ const startServer = async () => {
       console.log('✅ Database models synchronized.');
     }
 
+    // --- EMERGENCY FACULTY ASSIGNMENT ROUTE (TEMPORARY) ---
+    app.get('/api/admin/assign-ce-faculty', async (req, res) => {
+      try {
+        const { User, Faculty, Course, CourseSection, Department } = require('./models');
+        const { Op } = require('sequelize');
+
+        // 1. Find Computer Engineering Department
+        const department = await Department.findOne({
+          where: {
+            [Op.or]: [
+              { name: 'Computer Engineering' },
+              { name: 'Bilgisayar Mühendisliği' },
+              { code: 'CENG' },
+              { code: 'BM' }
+            ]
+          }
+        });
+
+        if (!department) {
+          return res.status(404).json({ success: false, message: 'Computer Engineering department not found' });
+        }
+
+        // 2. Find Courses
+        const courses = await Course.findAll({
+          where: { departmentId: department.id },
+          limit: 5 // User specifically asked for 5
+        });
+
+        const results = [];
+
+        // 3. Create Faculties and Assign
+        for (let i = 0; i < courses.length; i++) {
+          const course = courses[i];
+          const facultyEmail = `faculty${i + 1}@kampus.edu.tr`;
+          const facultyPassword = 'Password123';
+          const facultyName = `Dr. Faculty ${i + 1}`;
+
+          // Create/Get User
+          let [user, created] = await User.findOrCreate({
+            where: { email: facultyEmail },
+            defaults: {
+              password: facultyPassword,
+              firstName: 'Dr. Faculty',
+              lastName: `${i + 1}`,
+              role: 'faculty',
+              isEmailVerified: true,
+              isActive: true
+            }
+          });
+
+          // Ensure password is set if user existed (resetting password for user's convenience)
+          if (!created) {
+            user.password = facultyPassword;
+            await user.save();
+          }
+
+          // Create/Get Faculty Profile
+          let facultyProfile = await Faculty.findOne({ where: { userId: user.id } });
+          if (!facultyProfile) {
+            await Faculty.create({
+              userId: user.id,
+              departmentId: department.id,
+              employeeNumber: `FAC-${i + 1}`,
+              title: 'assistant_professor'
+            });
+          }
+
+          // 4. Assign to Sections
+          // Find profile ID again to be sure
+          const faculty = await Faculty.findOne({ where: { userId: user.id } });
+
+          const [updatedCount] = await CourseSection.update(
+            { instructorId: faculty.id },
+            { where: { courseId: course.id } }
+          );
+
+          results.push({
+            course: course.name,
+            instructor: facultyEmail,
+            password: facultyPassword,
+            updatedSections: updatedCount
+          });
+        }
+
+        res.json({
+          success: true,
+          department: department.name,
+          assignments: results
+        });
+
+      } catch (error) {
+        console.error('Faculty assignment failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+    // ---------------------------------------------
     // Only start server if not in test environment
     if (process.env.NODE_ENV !== 'test') {
       server.listen(PORT, () => {
