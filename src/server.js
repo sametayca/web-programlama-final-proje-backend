@@ -247,62 +247,59 @@ const startServer = async () => {
         // 3. Create Faculties and Assign
         for (let i = 0; i < courses.length; i++) {
           const course = courses[i];
-          let instructorUser;
-          let password = 'Password123';
+          const facultyNum = i + 1;
+          const facultyEmail = `faculty${facultyNum}@kampus.edu.tr`;
+          const password = 'Password123';
 
-          if (i === 0 && aliVeli) {
-            // Assign FIRST course to Ali Veli
-            instructorUser = aliVeli;
-            // Ensure he is faculty
-            if (instructorUser.role !== 'faculty') {
-              instructorUser.role = 'faculty';
-              await instructorUser.save();
+          // Create/Get User
+          let [user, created] = await User.findOrCreate({
+            where: { email: facultyEmail },
+            defaults: {
+              password: password,
+              firstName: 'Dr. Faculty',
+              lastName: `${facultyNum}`,
+              role: 'faculty',
+              isEmailVerified: true,
+              isActive: true
             }
-          } else {
-            // Assign others to faculty2, faculty3, etc.
-            // Note: If Ali Veli is faculty1, we start others from 2
-            const facultyNum = i + 1;
-            const facultyEmail = `faculty${facultyNum}@kampus.edu.tr`;
+          });
 
-            const [user, created] = await User.findOrCreate({
-              where: { email: facultyEmail },
-              defaults: {
-                password: password,
-                firstName: 'Dr. Faculty',
-                lastName: `${facultyNum}`,
-                role: 'faculty',
-                isEmailVerified: true,
-                isActive: true
-              }
-            });
-
-            if (!created) {
-              user.password = password;
-              await user.save();
-            }
-            instructorUser = user;
+          if (!created) {
+            // Update password and Ensure role is faculty
+            user.password = password;
+            if (user.role !== 'faculty') user.role = 'faculty';
+            await user.save();
           }
 
+          // --- FIX: CLEAR ALL PREVIOUS ASSIGNMENTS FOR THIS INSTRUCTOR ---
+          // This ensures Ali Veli (if he is faculty1) loses all other random courses
+          await CourseSection.update(
+            { instructorId: null },
+            { where: { instructorId: user.id } }
+          );
+          // ---------------------------------------------------------------
+
           // Ensure Faculty Profile Exists
-          let facultyProfile = await Faculty.findOne({ where: { userId: instructorUser.id } });
+          let facultyProfile = await Faculty.findOne({ where: { userId: user.id } });
           if (!facultyProfile) {
             await Faculty.create({
-              userId: instructorUser.id,
+              userId: user.id,
               departmentId: department.id,
-              employeeNumber: `FAC-${instructorUser.id.substring(0, 8)}`,
+              employeeNumber: `FAC-${user.id.substring(0, 8)}`,
               title: 'assistant_professor'
             });
           }
 
-          // 4. Assign to Sections
+          // 4. Assign to THIS Course Section
           const [updatedCount] = await CourseSection.update(
-            { instructorId: instructorUser.id },
+            { instructorId: user.id },
             { where: { courseId: course.id } }
           );
 
           results.push({
             course: course.name,
-            instructor: instructorUser.email,
+            instructor: facultyEmail,
+            clearedPreviousAssignments: true,
             updatedSections: updatedCount
           });
         }
@@ -310,7 +307,6 @@ const startServer = async () => {
         res.json({
           success: true,
           department: department.name,
-          cleanedAliVeli: !!aliVeli,
           assignments: results
         });
 
