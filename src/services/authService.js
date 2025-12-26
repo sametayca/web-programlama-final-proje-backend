@@ -198,12 +198,15 @@ class AuthService {
 
         if (studentProfile && studentProfile.departmentId) {
           console.log(`🎓 Auto-enrolling student ${user.email} in department courses...`);
+          console.log(`ℹ️ Department ID: ${studentProfile.departmentId}`);
           const enrollmentService = require('./enrollmentService');
           const enrollments = await enrollmentService.autoEnrollByDepartment(
             user.id,
             studentProfile.departmentId
           );
           console.log(`✅ Auto-enrolled in ${enrollments.length} courses`);
+        } else {
+          console.warn(`⚠️ Skipping auto-enrollment: Department ID missing for ${user.email}`);
         }
       } catch (error) {
         console.error('⚠️ Auto-enrollment failed (non-critical):', error.message);

@@ -138,6 +138,13 @@ class EnrollmentService {
       throw new Error('Student profile not found');
     }
 
+    if (!departmentId) {
+      console.warn('⚠️ autoEnrollByDepartment called without departmentId');
+      return [];
+    }
+
+    console.log(`🎓 Starting auto-enrollment for student ${studentId} in department ${departmentId}`);
+
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth();
     const semester = currentMonth >= 0 && currentMonth < 6 ? 'spring' : 'fall';
@@ -151,10 +158,13 @@ class EnrollmentService {
     });
 
     if (courses.length === 0) {
+      console.log(`ℹ️ No active courses found for department ${departmentId}`);
       return []; // No courses to enroll in
     }
 
     const courseIds = courses.map(c => c.id);
+    const courseCodes = courses.map(c => c.code).join(', ');
+    console.log(`📚 Found ${courses.length} courses for department: ${courseCodes}`);
 
     // Get all active sections for these courses in current semester/year
     const sections = await CourseSection.findAll({
@@ -167,11 +177,13 @@ class EnrollmentService {
       include: [{
         model: Course,
         as: 'course',
-        attributes: ['id', 'code', 'name']
+        attributes: ['id', 'code', 'name', 'departmentId'],
+        where: { departmentId: departmentId } // Double check to be absolutely sure
       }]
     });
 
     if (sections.length === 0) {
+      console.log(`ℹ️ No active sections found for these courses in ${semester} ${currentYear}`);
       return []; // No sections available
     }
 
@@ -271,7 +283,7 @@ class EnrollmentService {
         }, { transaction });
 
         enrollments.push(enrollment);
-        
+
         // Track this section for batch conflict checking
         enrolledSections.push({
           ...section.toJSON(),
