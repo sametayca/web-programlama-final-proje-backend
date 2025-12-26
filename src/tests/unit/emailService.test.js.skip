@@ -1,11 +1,9 @@
-// Mock nodemailer before requiring emailService
 const mockSendMail = jest.fn();
-const mockTransporter = {
-  sendMail: mockSendMail
-};
 
 jest.mock('nodemailer', () => ({
-  createTransport: jest.fn(() => mockTransporter)
+  createTransport: jest.fn(() => ({
+    sendMail: mockSendMail
+  }))
 }));
 
 const emailService = require('../../services/emailService');
@@ -14,7 +12,7 @@ const nodemailer = require('nodemailer');
 describe('EmailService', () => {
   beforeEach(() => {
     mockSendMail.mockClear();
-    
+
     process.env.EMAIL_HOST = 'smtp.test.com';
     process.env.EMAIL_PORT = '587';
     process.env.EMAIL_USER = 'test@example.com';
@@ -49,7 +47,7 @@ describe('EmailService', () => {
     it('should include verification URL in email body', async () => {
       const email = 'test@example.com';
       const token = 'test-token-123';
-      
+
       mockSendMail.mockResolvedValue({ messageId: 'test' });
 
       await emailService.sendVerificationEmail(email, token);
@@ -64,7 +62,7 @@ describe('EmailService', () => {
       const email = 'test@example.com';
       const token = 'test-token';
       const error = new Error('SMTP Error');
-      
+
       mockSendMail.mockRejectedValue(error);
 
       await expect(emailService.sendVerificationEmail(email, token)).rejects.toThrow('SMTP Error');
@@ -93,7 +91,7 @@ describe('EmailService', () => {
     it('should include reset URL in email body', async () => {
       const email = 'test@example.com';
       const token = 'reset-token-456';
-      
+
       mockSendMail.mockResolvedValue({ messageId: 'test' });
 
       await emailService.sendPasswordResetEmail(email, token);
@@ -109,7 +107,7 @@ describe('EmailService', () => {
       const email = 'test@example.com';
       const token = 'test-token';
       const error = new Error('SMTP Connection Error');
-      
+
       mockSendMail.mockRejectedValue(error);
 
       await expect(emailService.sendPasswordResetEmail(email, token)).rejects.toThrow('SMTP Connection Error');

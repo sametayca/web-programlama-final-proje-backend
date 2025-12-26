@@ -16,7 +16,7 @@ describe('AuthService', () => {
     it('should generate a valid JWT token', () => {
       const userId = '123';
       const token = authService.generateToken(userId);
-      
+
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
       expect(token.split('.')).toHaveLength(3);
@@ -27,7 +27,7 @@ describe('AuthService', () => {
     it('should generate a valid refresh token', () => {
       const userId = '123';
       const refreshToken = authService.generateRefreshToken(userId);
-      
+
       expect(refreshToken).toBeDefined();
       expect(typeof refreshToken).toBe('string');
       expect(refreshToken.split('.')).toHaveLength(3);
@@ -39,10 +39,10 @@ describe('AuthService', () => {
       Student.findOne = jest.fn()
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
-      
+
       const number1 = await authService.generateStudentNumber('CS', 2024);
       const number2 = await authService.generateStudentNumber('CS', 2024);
-      
+
       expect(number1).toMatch(/^CS24\d{4}$/);
       expect(number2).toMatch(/^CS24\d{4}$/);
     });
@@ -51,7 +51,7 @@ describe('AuthService', () => {
       Student.findOne = jest.fn()
         .mockResolvedValueOnce({ id: '1' })
         .mockResolvedValueOnce(null);
-      
+
       const number = await authService.generateStudentNumber('CS', 2024);
       expect(number).toMatch(/^CS24\d{4}$/);
     });
@@ -62,10 +62,10 @@ describe('AuthService', () => {
       Faculty.findOne = jest.fn()
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
-      
+
       const number1 = await authService.generateEmployeeNumber('CS');
       const number2 = await authService.generateEmployeeNumber('CS');
-      
+
       expect(number1).toMatch(/^CS\d{5}$/);
       expect(number2).toMatch(/^CS\d{5}$/);
     });
@@ -74,7 +74,7 @@ describe('AuthService', () => {
       Faculty.findOne = jest.fn()
         .mockResolvedValueOnce({ id: '1' })
         .mockResolvedValueOnce(null);
-      
+
       const number = await authService.generateEmployeeNumber('CS');
       expect(number).toMatch(/^CS\d{5}$/);
     });
@@ -95,7 +95,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       const user = await authService.register(userData);
-      
+
       expect(user).toBeDefined();
       expect(User.create).toHaveBeenCalled();
     });
@@ -134,7 +134,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
-      
+
       expect(Student.create).toHaveBeenCalled();
     });
 
@@ -159,7 +159,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
-      
+
       expect(Student.create).toHaveBeenCalledWith(
         expect.objectContaining({ studentNumber: 'CUSTOM001' })
       );
@@ -186,7 +186,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
-      
+
       expect(Student.create).toHaveBeenCalled();
     });
 
@@ -212,7 +212,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
-      
+
       expect(Faculty.create).toHaveBeenCalled();
     });
 
@@ -237,7 +237,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
-      
+
       expect(Faculty.create).toHaveBeenCalledWith(
         expect.objectContaining({ employeeNumber: 'CUSTOM001' })
       );
@@ -264,7 +264,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockResolvedValue({});
 
       await authService.register(userData);
-      
+
       expect(Faculty.create).toHaveBeenCalledWith(
         expect.objectContaining({ title: 'lecturer' })
       );
@@ -368,7 +368,7 @@ describe('AuthService', () => {
       emailService.sendVerificationEmail = jest.fn().mockRejectedValue(new Error('SMTP Error'));
 
       const user = await authService.register(userData);
-      
+
       expect(user).toBeDefined();
       expect(emailService.sendVerificationEmail).toHaveBeenCalled();
     });
@@ -413,7 +413,7 @@ describe('AuthService', () => {
       User.findOne = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.verifyEmail('valid-token');
-      
+
       expect(result.isEmailVerified).toBe(true);
       expect(mockUser.save).toHaveBeenCalled();
     });
@@ -421,13 +421,15 @@ describe('AuthService', () => {
     it('should throw error for invalid token', async () => {
       User.findOne = jest.fn().mockResolvedValue(null);
 
-      await expect(authService.verifyEmail('invalid-token')).rejects.toThrow('Invalid or expired verification token');
+      await expect(authService.verifyEmail('invalid-token')).rejects.toThrow(/Geçersiz doğrulama/);
     });
 
     it('should throw error for expired token', async () => {
-      User.findOne = jest.fn().mockResolvedValue(null);
+      User.findOne = jest.fn().mockResolvedValue({
+        emailVerificationExpires: new Date(Date.now() - 10000)
+      });
 
-      await expect(authService.verifyEmail('expired-token')).rejects.toThrow('Invalid or expired verification token');
+      await expect(authService.verifyEmail('expired-token')).rejects.toThrow(/Doğrulama token'ının süresi dolmuş/);
     });
   });
 
@@ -444,7 +446,7 @@ describe('AuthService', () => {
       User.findOne = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.login('test@test.com', 'password123');
-      
+
       expect(result.user).toBeDefined();
       expect(result.token).toBeDefined();
       expect(result.refreshToken).toBeDefined();
@@ -465,7 +467,7 @@ describe('AuthService', () => {
       User.findOne = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.login('test@test.com', 'password123');
-      
+
       expect(result.user).toBeDefined();
       expect(User.findOne).toHaveBeenCalledWith(expect.objectContaining({
         include: expect.any(Array)
@@ -475,7 +477,7 @@ describe('AuthService', () => {
     it('should throw error for invalid credentials', async () => {
       User.findOne = jest.fn().mockResolvedValue(null);
 
-      await expect(authService.login('test@test.com', 'wrong')).rejects.toThrow('Invalid credentials');
+      await expect(authService.login('test@test.com', 'wrong')).rejects.toThrow('Geçersiz e-posta veya şifre');
     });
 
     it('should throw error for inactive user', async () => {
@@ -486,7 +488,7 @@ describe('AuthService', () => {
 
       User.findOne = jest.fn().mockResolvedValue(mockUser);
 
-      await expect(authService.login('test@test.com', 'password123')).rejects.toThrow('Invalid credentials');
+      await expect(authService.login('test@test.com', 'password123')).rejects.toThrow('Hesabınız aktif değil. Lütfen yönetici ile iletişime geçin.');
     });
 
     it('should throw error for wrong password', async () => {
@@ -498,7 +500,7 @@ describe('AuthService', () => {
 
       User.findOne = jest.fn().mockResolvedValue(mockUser);
 
-      await expect(authService.login('test@test.com', 'wrong')).rejects.toThrow('Invalid credentials');
+      await expect(authService.login('test@test.com', 'wrong')).rejects.toThrow('Geçersiz e-posta veya şifre');
     });
   });
 
@@ -515,7 +517,7 @@ describe('AuthService', () => {
       User.findByPk = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.refreshToken('valid-refresh-token');
-      
+
       expect(result.token).toBeDefined();
       expect(result.refreshToken).toBeDefined();
     });
@@ -560,7 +562,7 @@ describe('AuthService', () => {
       User.findByPk = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.logout('1');
-      
+
       expect(result.message).toBe('Logged out successfully');
       expect(mockUser.refreshToken).toBeNull();
     });
@@ -585,7 +587,7 @@ describe('AuthService', () => {
       emailService.sendPasswordResetEmail = jest.fn().mockResolvedValue({});
 
       const result = await authService.forgotPassword('test@test.com');
-      
+
       expect(result.message).toContain('password reset link has been sent');
       expect(mockUser.passwordResetToken).toBeDefined();
     });
@@ -608,7 +610,7 @@ describe('AuthService', () => {
       emailService.sendPasswordResetEmail = jest.fn().mockRejectedValue(new Error('SMTP Error'));
 
       const result = await authService.forgotPassword('test@test.com');
-      
+
       expect(result.message).toContain('password reset link has been sent');
       expect(mockUser.passwordResetToken).toBeDefined();
     });
@@ -626,7 +628,7 @@ describe('AuthService', () => {
       User.findOne = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.resetPassword('valid-token', 'newpassword123');
-      
+
       expect(result.message).toBe('Password reset successfully');
       expect(mockUser.passwordResetToken).toBeNull();
     });
@@ -657,7 +659,7 @@ describe('AuthService', () => {
       User.findByPk = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.getProfile('1');
-      
+
       expect(result).toBeDefined();
       expect(User.findByPk).toHaveBeenCalledWith('1', expect.any(Object));
     });
@@ -679,7 +681,7 @@ describe('AuthService', () => {
       User.findByPk = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.getProfile('1');
-      
+
       expect(result).toBeDefined();
       expect(User.findByPk).toHaveBeenCalledWith('1', expect.objectContaining({
         include: expect.any(Array)
@@ -702,7 +704,7 @@ describe('AuthService', () => {
         firstName: 'New',
         lastName: 'Name'
       });
-      
+
       expect(result.firstName).toBe('New');
       expect(mockUser.save).toHaveBeenCalled();
     });
@@ -730,7 +732,7 @@ describe('AuthService', () => {
         phone: '456',
         email: 'hack@test.com' // Should be ignored
       });
-      
+
       expect(mockUser.firstName).toBe('New');
       expect(mockUser.lastName).toBe('NewName');
       expect(mockUser.phone).toBe('456');
@@ -749,7 +751,7 @@ describe('AuthService', () => {
       User.findByPk = jest.fn().mockResolvedValue(mockUser);
 
       const result = await authService.updateProfilePicture('1', 'picture.jpg');
-      
+
       expect(result.profilePicture).toBe('picture.jpg');
     });
 
@@ -766,7 +768,7 @@ describe('AuthService', () => {
       fs.unlinkSync = jest.fn();
 
       await authService.updateProfilePicture('1', 'new.jpg');
-      
+
       expect(fs.unlinkSync).toHaveBeenCalled();
     });
 

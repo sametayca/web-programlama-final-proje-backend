@@ -28,7 +28,7 @@ class AuthService {
     while (exists) {
       const year = enrollmentYear.toString().slice(-2);
       studentNumber = `${departmentCode}${year}${counter.toString().padStart(4, '0')}`;
-      
+
       const existing = await Student.findOne({ where: { studentNumber } });
       if (!existing) {
         exists = false;
@@ -48,7 +48,7 @@ class AuthService {
 
     while (exists) {
       employeeNumber = `${departmentCode}${counter.toString().padStart(5, '0')}`;
-      
+
       const existing = await Faculty.findOne({ where: { employeeNumber } });
       if (!existing) {
         exists = false;
@@ -103,22 +103,22 @@ class AuthService {
       if (role === 'student' && departmentId) {
         const finalEnrollmentYear = enrollmentYear || new Date().getFullYear();
         const autoStudentNumber = studentNumber || await this.generateStudentNumber(department.code, finalEnrollmentYear);
-        
-      await Student.create({
-        userId: user.id,
+
+        await Student.create({
+          userId: user.id,
           studentNumber: autoStudentNumber,
-        departmentId,
+          departmentId,
           enrollmentYear: finalEnrollmentYear
-      });
+        });
       } else if (role === 'faculty' && departmentId) {
         const autoEmployeeNumber = employeeNumber || await this.generateEmployeeNumber(department.code);
-        
-      await Faculty.create({
-        userId: user.id,
+
+        await Faculty.create({
+          userId: user.id,
           employeeNumber: autoEmployeeNumber,
-        departmentId,
-        title: title || 'lecturer'
-      });
+          departmentId,
+          title: title || 'lecturer'
+        });
       }
     } catch (error) {
       // If profile creation fails, delete the user
@@ -148,7 +148,7 @@ class AuthService {
   async verifyEmail(token) {
     // Trim token to handle whitespace issues
     const trimmedToken = token ? token.trim() : null;
-    
+
     if (!trimmedToken) {
       throw new Error('Doğrulama token\'ı gerekli');
     }
@@ -163,20 +163,8 @@ class AuthService {
     });
 
     if (!user) {
-      // Debug: Check if any users have tokens
-      console.log('⚠️ Token not found, checking for tokens in database...');
-      const allUsers = await User.findAll({
-        where: {
-          emailVerificationToken: { [Sequelize.Op.ne]: null }
-        },
-        attributes: ['id', 'email', 'emailVerificationToken'],
-        limit: 5
-      });
-      console.log(`Found ${allUsers.length} users with verification tokens`);
-      if (allUsers.length > 0) {
-        console.log('Sample token from DB:', allUsers[0].emailVerificationToken?.substring(0, 20) + '...');
-      }
-      
+
+
       throw new Error('Geçersiz doğrulama token\'ı');
     }
 
@@ -251,7 +239,7 @@ class AuthService {
       console.log('❌ Invalid password for user:', email);
       throw new Error('Geçersiz e-posta veya şifre');
     }
-    
+
     console.log('✅ Login successful for user:', email, 'Role:', user.role);
 
     // Auto-enroll student in department courses if email verified but no enrollments yet
