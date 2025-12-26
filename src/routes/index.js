@@ -44,5 +44,11 @@ router.use('/v1/reservations', require('./reservationRoutes'));
 // Part 4 Routes - Analytics
 router.use('/v1/analytics', require('./analyticsRoutes'));
 
+// Part 4 Routes - Notifications
+router.use('/v1/notifications', require('./notificationRoutes'));
+
+// Part 4 Routes - IoT Sensors
+router.use('/v1/sensors', require('./sensorRoutes'));
+
 module.exports = router;
 

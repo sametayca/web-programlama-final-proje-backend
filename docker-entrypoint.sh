@@ -27,4 +27,3 @@ npx sequelize-cli db:seed:all || {
 # Start the application
 echo "🚀 Starting application..."
 exec "$@"
-

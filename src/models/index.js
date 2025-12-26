@@ -52,6 +52,14 @@ db.Schedule = require('./Schedule')(sequelize, Sequelize.DataTypes);
 // Part 3 Models - Classroom Reservations
 db.ClassroomReservation = require('./ClassroomReservation')(sequelize, Sequelize.DataTypes);
 
+// Part 4 Models - Notifications
+db.Notification = require('./Notification')(sequelize, Sequelize.DataTypes);
+db.NotificationPreference = require('./NotificationPreference')(sequelize, Sequelize.DataTypes);
+
+// Part 4 Models - IoT Sensors
+db.Sensor = require('./Sensor')(sequelize, Sequelize.DataTypes);
+db.SensorData = require('./SensorData')(sequelize, Sequelize.DataTypes);
+
 // Define associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {

@@ -4,7 +4,7 @@ const logger = require('../config/logger');
 // General API rate limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 2000, // Limit each IP to 2000 requests per windowMs
   message: {
     success: false,
     error: 'Çok fazla istek gönderdiniz. Lütfen 15 dakika sonra tekrar deneyin.'

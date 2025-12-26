@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const morgan = require('morgan');
 const { sequelize } = require('./models');
@@ -9,9 +10,37 @@ const { swaggerUi, specs } = require('./config/swagger');
 const logger = require('./config/logger');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const { initRedis, closeRedis } = require('./config/redis');
+const socketService = require('./config/socket');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// Initialize Socket.io
+if (process.env.NODE_ENV !== 'test') {
+  socketService.initialize(server);
+  app.set('socketService', socketService);
+}
+
+// Middleware
+// CORS configuration - explicitly allow frontend origins
+const corsOptions = {
+  origin: [
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    process.env.FRONTEND_URL || 'http://localhost:3001'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Disposition']
+};
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Logging middleware
 app.use(morgan('combined', { stream: logger.stream }));
@@ -19,10 +48,7 @@ app.use(morgan('combined', { stream: logger.stream }));
 // Rate limiting for all API routes
 app.use('/api/', apiLimiter);
 
-// Middleware
-// Allow both localhost and local IP for mobile device access
-// Enable CORS for all routes (implied by default options)
-app.use(cors());
+
 
 // Stripe webhook needs raw body, so handle it before JSON parser
 app.use('/api/v1/wallet/topup/webhook', express.raw({ type: 'application/json' }));
@@ -42,12 +68,20 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
 // Routes
 app.use('/api', routes);
 
-// Health checkk
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Web Programlama Final Projesi API is running' });
+  const connectedUsers = socketService.getConnectedUsersCount ? socketService.getConnectedUsersCount() : 0;
+  res.json({
+    status: 'OK',
+    message: 'Web Programlama Final Projesi API is running',
+    websocket: {
+      enabled: process.env.NODE_ENV !== 'test',
+      connectedUsers
+    }
+  });
 });
 
-// Error handler (must be lastt)
+// Error handler (must be last)
 app.use(errorHandler);
 
 // Database connection and server start - Main server initialization
@@ -93,18 +127,42 @@ const startServer = async () => {
 
     // Only start server if not in test environment
     if (process.env.NODE_ENV !== 'test') {
-      app.listen(PORT, () => {
+      server.listen(PORT, () => {
         logger.info(`🚀 Server is running on port ${PORT}`);
         logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
         logger.info(`📚 API Docs: http://localhost:${PORT}/api-docs`);
+        logger.info(`🔌 WebSocket: ws://localhost:${PORT}`);
         console.log(`🚀 Server is running on port ${PORT}`);
         console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
+        console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
 
         // Start background jobs
         if (process.env.ENABLE_BACKGROUND_JOBS !== 'false') {
           const absenceWarningJob = require('./jobs/absenceWarningJob');
           absenceWarningJob.start();
+
+          // Start Part 4 jobs
+          try {
+            const eventReminderJob = require('./jobs/eventReminderJob');
+            eventReminderJob.start();
+          } catch (e) {
+            console.log('Event reminder job not available:', e.message);
+          }
+
+          try {
+            const mealReminderJob = require('./jobs/mealReminderJob');
+            mealReminderJob.start();
+          } catch (e) {
+            console.log('Meal reminder job not available:', e.message);
+          }
+
+          try {
+            const sensorSimulator = require('./jobs/sensorSimulator');
+            sensorSimulator.start();
+          } catch (e) {
+            console.log('Sensor simulator not available:', e.message);
+          }
         }
       });
     }
@@ -121,12 +179,18 @@ const startServer = async () => {
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM signal received: closing HTTP server');
   await closeRedis();
+  server.close(() => {
+    logger.info('HTTP server closed');
+  });
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT signal received: closing HTTP server');
   await closeRedis();
+  server.close(() => {
+    logger.info('HTTP server closed');
+  });
   process.exit(0);
 });
 
@@ -136,4 +200,3 @@ if (require.main === module) {
 }
 
 module.exports = app;
-
