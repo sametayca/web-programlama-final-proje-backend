@@ -30,6 +30,7 @@ const corsOptions = {
     'http://127.0.0.1:3001',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://web-programlama-final-proje-frontend-production.up.railway.app',
     process.env.FRONTEND_URL || 'http://localhost:3001'
   ],
   credentials: true,
