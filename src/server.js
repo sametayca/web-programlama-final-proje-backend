@@ -262,11 +262,9 @@ const startServer = async () => {
           }
 
           // 4. Assign to Sections
-          // Find profile ID again to be sure
-          const faculty = await Faculty.findOne({ where: { userId: user.id } });
-
+          // CourseSection.instructorId references users.id, NOT faculty.id
           const [updatedCount] = await CourseSection.update(
-            { instructorId: faculty.id },
+            { instructorId: user.id },
             { where: { courseId: course.id } }
           );
 
