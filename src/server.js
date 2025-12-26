@@ -216,10 +216,30 @@ const startServer = async () => {
           return res.status(404).json({ success: false, message: 'Computer Engineering department not found' });
         }
 
+        // 1.5 Clean ALL assignments for Ali Veli (or any seeded faculty that might be messy)
+        // Find Ali Veli by likely email or name
+        const aliVeli = await User.findOne({
+          where: {
+            [Op.or]: [
+              { email: 'ali.veli@kampus.edu.tr' },
+              { email: 'ali@kampus.edu.tr' },
+              { firstName: 'Ali', lastName: 'Veli' }
+            ]
+          }
+        });
+
+        if (aliVeli) {
+          console.log(`🧹 Wiping all course assignments for Ali Veli (${aliVeli.id})`);
+          await CourseSection.update(
+            { instructorId: null },
+            { where: { instructorId: aliVeli.id } }
+          );
+        }
+
         // 2. Find Courses
         const courses = await Course.findAll({
           where: { departmentId: department.id },
-          limit: 5 // User specifically asked for 5
+          limit: 5
         });
 
         const results = [];
@@ -227,51 +247,62 @@ const startServer = async () => {
         // 3. Create Faculties and Assign
         for (let i = 0; i < courses.length; i++) {
           const course = courses[i];
-          const facultyEmail = `faculty${i + 1}@kampus.edu.tr`;
-          const facultyPassword = 'Password123';
-          const facultyName = `Dr. Faculty ${i + 1}`;
+          let instructorUser;
+          let password = 'Password123';
 
-          // Create/Get User
-          let [user, created] = await User.findOrCreate({
-            where: { email: facultyEmail },
-            defaults: {
-              password: facultyPassword,
-              firstName: 'Dr. Faculty',
-              lastName: `${i + 1}`,
-              role: 'faculty',
-              isEmailVerified: true,
-              isActive: true
+          if (i === 0 && aliVeli) {
+            // Assign FIRST course to Ali Veli
+            instructorUser = aliVeli;
+            // Ensure he is faculty
+            if (instructorUser.role !== 'faculty') {
+              instructorUser.role = 'faculty';
+              await instructorUser.save();
             }
-          });
+          } else {
+            // Assign others to faculty2, faculty3, etc.
+            // Note: If Ali Veli is faculty1, we start others from 2
+            const facultyNum = i + 1;
+            const facultyEmail = `faculty${facultyNum}@kampus.edu.tr`;
 
-          // Ensure password is set if user existed (resetting password for user's convenience)
-          if (!created) {
-            user.password = facultyPassword;
-            await user.save();
+            const [user, created] = await User.findOrCreate({
+              where: { email: facultyEmail },
+              defaults: {
+                password: password,
+                firstName: 'Dr. Faculty',
+                lastName: `${facultyNum}`,
+                role: 'faculty',
+                isEmailVerified: true,
+                isActive: true
+              }
+            });
+
+            if (!created) {
+              user.password = password;
+              await user.save();
+            }
+            instructorUser = user;
           }
 
-          // Create/Get Faculty Profile
-          let facultyProfile = await Faculty.findOne({ where: { userId: user.id } });
+          // Ensure Faculty Profile Exists
+          let facultyProfile = await Faculty.findOne({ where: { userId: instructorUser.id } });
           if (!facultyProfile) {
             await Faculty.create({
-              userId: user.id,
+              userId: instructorUser.id,
               departmentId: department.id,
-              employeeNumber: `FAC-${i + 1}`,
+              employeeNumber: `FAC-${instructorUser.id.substring(0, 8)}`,
               title: 'assistant_professor'
             });
           }
 
           // 4. Assign to Sections
-          // CourseSection.instructorId references users.id, NOT faculty.id
           const [updatedCount] = await CourseSection.update(
-            { instructorId: user.id },
+            { instructorId: instructorUser.id },
             { where: { courseId: course.id } }
           );
 
           results.push({
             course: course.name,
-            instructor: facultyEmail,
-            password: facultyPassword,
+            instructor: instructorUser.email,
             updatedSections: updatedCount
           });
         }
@@ -279,6 +310,7 @@ const startServer = async () => {
         res.json({
           success: true,
           department: department.name,
+          cleanedAliVeli: !!aliVeli,
           assignments: results
         });
 
