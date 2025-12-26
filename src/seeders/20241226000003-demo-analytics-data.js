@@ -111,43 +111,44 @@ module.exports = {
         }
 
         // --- Create Enrollments and Grades ---
-        const enrollments = [];
-        if (sections.length > 0) {
-            for (const student of students) {
-                // Enroll each student in 1-3 random sections
-                const randomSections = sections.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3) + 1);
+        // DISABLED: This was causing students to be enrolled in random courses outside their department with random grades.
+        // const enrollments = [];
+        // if (sections.length > 0) {
+        //     for (const student of students) {
+        //         // Enroll each student in 1-3 random sections
+        //         const randomSections = sections.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3) + 1);
 
-                for (const section of randomSections) {
-                    enrollments.push({
-                        id: uuidv4(),
-                        studentId: student.userId,
-                        sectionId: section.id,
-                        status: 'enrolled',
-                        enrollmentDate: new Date(),
-                        midtermGrade: Math.floor(Math.random() * 40) + 40, // 40-80
-                        finalGrade: Math.floor(Math.random() * 50) + 50, // 50-100
-                        letterGrade: ['A', 'B', 'C', 'D'][Math.floor(Math.random() * 4)],
-                        gradePoint: (Math.random() * 2 + 2).toFixed(2), // 2.0 - 4.0
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-                }
-            }
-            for (const enrollment of enrollments) {
-                try {
-                    await queryInterface.sequelize.query(`
-              INSERT INTO enrollments (id, "studentId", "sectionId", status, "enrollmentDate", "midtermGrade", "finalGrade", "letterGrade", "gradePoint", "createdAt", "updatedAt")
-              VALUES (:id, :studentId, :sectionId, :status, :enrollmentDate, :midtermGrade, :finalGrade, :letterGrade, :gradePoint, :createdAt, :updatedAt)
-              ON CONFLICT DO NOTHING;
-            `, {
-                        replacements: enrollment
-                    });
-                } catch (e) {
-                    // Ignore
-                }
-            }
-            console.log(`✅ Seeded enrollments`);
-        }
+        //         for (const section of randomSections) {
+        //             enrollments.push({
+        //                 id: uuidv4(),
+        //                 studentId: student.userId,
+        //                 sectionId: section.id,
+        //                 status: 'enrolled',
+        //                 enrollmentDate: new Date(),
+        //                 midtermGrade: Math.floor(Math.random() * 40) + 40, // 40-80
+        //                 finalGrade: Math.floor(Math.random() * 50) + 50, // 50-100
+        //                 letterGrade: ['A', 'B', 'C', 'D'][Math.floor(Math.random() * 4)],
+        //                 gradePoint: (Math.random() * 2 + 2).toFixed(2), // 2.0 - 4.0
+        //                 createdAt: new Date(),
+        //                 updatedAt: new Date()
+        //             });
+        //         }
+        //     }
+        //     for (const enrollment of enrollments) {
+        //         try {
+        //             await queryInterface.sequelize.query(`
+        //       INSERT INTO enrollments (id, "studentId", "sectionId", status, "enrollmentDate", "midtermGrade", "finalGrade", "letterGrade", "gradePoint", "createdAt", "updatedAt")
+        //       VALUES (:id, :studentId, :sectionId, :status, :enrollmentDate, :midtermGrade, :finalGrade, :letterGrade, :gradePoint, :createdAt, :updatedAt)
+        //       ON CONFLICT DO NOTHING;
+        //     `, {
+        //                 replacements: enrollment
+        //             });
+        //         } catch (e) {
+        //             // Ignore
+        //         }
+        //     }
+        //     console.log(`✅ Seeded enrollments`);
+        // }
 
         // --- Create Attendance Sessions and Records ---
         // Get Faculty
