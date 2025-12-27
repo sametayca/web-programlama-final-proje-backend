@@ -21,6 +21,8 @@ router.post(
     body('startTime').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Invalid start time format (HH:MM)'),
     body('endTime').matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Invalid end time format (HH:MM)'),
     body('geofenceRadius').optional().isFloat({ min: 5, max: 100 }).withMessage('Geofence radius must be between 5 and 100 meters'),
+    body('latitude').optional().isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
+    body('longitude').optional().isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude'),
     validateRequest
   ],
   async (req, res) => {
@@ -93,8 +95,8 @@ router.post(
         date,
         startTime,
         endTime,
-        latitude: section.classroom.latitude,
-        longitude: section.classroom.longitude,
+        latitude: req.body.latitude || section.classroom.latitude,
+        longitude: req.body.longitude || section.classroom.longitude,
         geofenceRadius: geofenceRadius || 15.00,
         qrCode,
         qrCodeExpiresAt,
@@ -554,7 +556,7 @@ router.get(
   '/my-attendance',
   authGuard,
   roleGuard('student'),
-async (req, res) => {
+  async (req, res) => {
     try {
       const studentId = req.user.id;
       const { sectionId } = req.query;
@@ -664,12 +666,12 @@ router.get(
           );
 
           // Get flagged records
-          const sessions = await AttendanceSession.findAll({ 
-            where: { sectionId }, 
-            attributes: ['id'] 
+          const sessions = await AttendanceSession.findAll({
+            where: { sectionId },
+            attributes: ['id']
           });
           const sessionIds = sessions.map(s => s.id);
-          
+
           const flaggedRecords = await AttendanceRecord.count({
             where: {
               sessionId: { [Op.in]: sessionIds },
@@ -733,7 +735,7 @@ router.post(
           }]
         }]
       });
-      
+
       if (!session) {
         return res.status(404).json({
           success: false,
