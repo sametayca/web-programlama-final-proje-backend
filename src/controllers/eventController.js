@@ -1,5 +1,6 @@
 const eventService = require('../services/eventService');
 const logger = require('../config/logger');
+const notificationService = require('../services/notificationService');
 
 /**
  * @desc    Get all events
@@ -93,6 +94,39 @@ exports.createEvent = async (req, res) => {
     const event = await eventService.createEvent(req.body, userId);
 
     logger.info(`Event created: ${event.id} by user ${userId}`);
+
+    // Send notification to all students about new event (only for non-academic events)
+    if (!academicTypes.includes(eventType)) {
+      try {
+        const eventDate = new Date(event.startDate).toLocaleDateString('tr-TR');
+        await notificationService.broadcastNotification({
+          title: `🎉 Yeni Etkinlik: ${event.title}`,
+          message: `${event.title} - ${eventDate} tarihinde ${event.location} konumunda. Kaydolmak için tıklayın!`,
+          category: 'event',
+          type: 'info',
+          link: `/events/${event.id}`
+        }, 'student');
+        logger.info(`Broadcast notification sent for event: ${event.id}`);
+      } catch (notifError) {
+        logger.error('Failed to send event notification:', notifError);
+        // Don't fail the main operation
+      }
+    } else {
+      // For academic events, notify all users
+      try {
+        const eventDate = new Date(event.startDate).toLocaleDateString('tr-TR');
+        await notificationService.broadcastNotification({
+          title: `📅 Akademik Takvim: ${event.title}`,
+          message: `${event.title} - ${eventDate}`,
+          category: 'academic',
+          type: 'info',
+          link: '/academic-calendar'
+        });
+        logger.info(`Academic calendar notification sent for: ${event.id}`);
+      } catch (notifError) {
+        logger.error('Failed to send academic notification:', notifError);
+      }
+    }
 
     res.status(201).json({
       success: true,

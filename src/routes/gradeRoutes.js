@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { Enrollment, CourseSection, User } = require('../models');
+const { Enrollment, CourseSection, User, Course } = require('../models');
 const { Op } = require('sequelize');
 const { body, param, query } = require('express-validator');
 const validateRequest = require('../middleware/validateRequest');
 const authGuard = require('../middleware/auth');
 const roleGuard = require('../middleware/roleGuard');
 const gradeCalculationService = require('../services/gradeCalculationService');
+const notificationService = require('../services/notificationService');
 
 // Get my grades (Student only)
 router.get(
@@ -331,6 +332,39 @@ router.post(
       // If grades are complete, mark as completed
       if (letterGrade && ['A', 'B', 'C', 'D', 'F'].includes(letterGrade)) {
         await enrollment.update({ status: 'completed' });
+      }
+
+      // Send notification to student about grade entry
+      try {
+        const section = await CourseSection.findByPk(enrollment.sectionId, {
+          include: [{ model: Course, as: 'course', attributes: ['code', 'name'] }]
+        });
+        
+        const courseName = section?.course?.name || 'Ders';
+        const courseCode = section?.course?.code || '';
+        
+        let gradeMessage = '';
+        if (midtermGrade !== undefined) {
+          gradeMessage = `Vize notunuz: ${midtermGrade}`;
+        }
+        if (finalGrade !== undefined) {
+          gradeMessage = `Final notunuz: ${finalGrade}`;
+          if (letterGrade) {
+            gradeMessage += ` (Harf Notu: ${letterGrade})`;
+          }
+        }
+
+        await notificationService.createNotification({
+          userId: enrollment.studentId,
+          title: `📝 ${courseCode} - Not Girişi Yapıldı`,
+          message: `${courseName} dersi için ${gradeMessage}`,
+          category: 'academic',
+          type: 'info',
+          link: '/grades'
+        });
+      } catch (notifError) {
+        console.error('Failed to send grade notification:', notifError);
+        // Don't fail the main operation
       }
 
       res.json({

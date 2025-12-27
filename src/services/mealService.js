@@ -2,6 +2,7 @@ const { MealMenu, MealReservation, Student, User, Cafeteria, Transaction, sequel
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const notificationService = require('./notificationService');
+const logger = require('../config/logger');
 
 class MealService {
   /**
@@ -243,13 +244,37 @@ class MealService {
       });
 
       // Send notification (non-blocking)
-      if (reservationWithDetails.student) {
-        const userName = `${reservationWithDetails.student.firstName} ${reservationWithDetails.student.lastName}`;
-        notificationService.sendMealReservationConfirmation(
-          reservationWithDetails,
-          reservationWithDetails.student.email,
-          userName
-        ).catch(err => logger.error('Failed to send reservation confirmation email:', err));
+      try {
+        if (reservationWithDetails.student) {
+          const userName = `${reservationWithDetails.student.firstName} ${reservationWithDetails.student.lastName}`;
+          await notificationService.sendMealReservationConfirmation(
+            reservationWithDetails,
+            reservationWithDetails.student.email,
+            userName,
+            studentId
+          );
+          logger.info(`Meal reservation notification sent to student ${studentId}`);
+        } else {
+          // If student relation is not loaded, get user info separately
+          const user = await User.findByPk(studentId, {
+            attributes: ['id', 'firstName', 'lastName', 'email']
+          });
+          if (user) {
+            const userName = `${user.firstName} ${user.lastName}`;
+            await notificationService.sendMealReservationConfirmation(
+              reservationWithDetails,
+              user.email,
+              userName,
+              studentId
+            );
+            logger.info(`Meal reservation notification sent to student ${studentId} (via direct user lookup)`);
+          } else {
+            logger.warn(`Could not send meal reservation notification: User ${studentId} not found`);
+          }
+        }
+      } catch (notifError) {
+        logger.error('Failed to send meal reservation notification:', notifError);
+        // Don't fail the reservation creation
       }
 
       return reservationWithDetails;
