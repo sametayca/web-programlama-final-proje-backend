@@ -10,6 +10,9 @@
     "test:watch": "jest --watch",
     "test:setup": "node scripts/create-test-db.js",
     "test:full": "npm run test:setup && npm test",
+    "test:coverage": "jest --coverage --forceExit --detectOpenHandles --coverageReporters=text --coverageReporters=text-summary --coverageReporters=json --coverageReporters=lcov --coverageReporters=html",
+    "test:unit": "jest --testPathPattern=unit --coverage",
+    "test:integration": "jest --testPathPattern=integration --coverage",
     "db:migrate": "sequelize-cli db:migrate",
     "db:seed": "sequelize-cli db:seed:all",
     "db:reset": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate && sequelize-cli db:seed:all"
