@@ -24,19 +24,31 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Middleware
 // CORS configuration - explicitly allow frontend origins
-const corsOptions = {
-  origin: [
+origin: function (origin, callback) {
+  const allowedOrigins = [
     'http://localhost:3001',
     'http://127.0.0.1:3001',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'https://web-programlama-final-proje-frontend-production.up.railway.app',
-    process.env.FRONTEND_URL || 'http://localhost:3001'
-  ],
-  credentials: true,
+    process.env.FRONTEND_URL
+  ].filter(Boolean); // Remove falsy values
+
+  // Allow requests with no origin (like mobile apps or curl requests)
+  if (!origin) return callback(null, true);
+
+  // Check if origin is allowed
+  if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.railway.app')) {
+    return callback(null, true);
+  } else {
+    console.log('Blocked by CORS:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  }
+},
+credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Content-Disposition']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+      exposedHeaders: ['Content-Disposition']
 };
 app.use(cors(corsOptions));
 
