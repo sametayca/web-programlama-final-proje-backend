@@ -231,7 +231,7 @@ router.get(
       doc.moveDown(0.3);
 
       // Transcript rows
-      doc.font(fontRegular)
+      doc.font('Roboto')
         .fontSize(9);
 
       transcript.transcript.forEach((course, index) => {
@@ -273,12 +273,10 @@ router.get(
       doc.end();
     } catch (error) {
       console.error('PDF generation error:', error);
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          error: error.message
-        });
-      }
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
   }
 );
