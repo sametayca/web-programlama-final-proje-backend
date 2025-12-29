@@ -213,9 +213,15 @@ router.get(
       doc.moveDown(0.3);
 
       // Transcript rows
+<<<<<<< HEAD
       doc.font('Helvetica')
          .fontSize(9);
       
+=======
+      doc.font('Roboto')
+        .fontSize(9);
+
+>>>>>>> parent of e77cc4a (asda)
       transcript.transcript.forEach((course, index) => {
         const rowY = doc.y;
         
