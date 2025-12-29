@@ -126,7 +126,7 @@ router.get(
       }
 
       // Create PDF document
-      const doc = new PDFDocument({ 
+      const doc = new PDFDocument({
         margin: 50,
         size: 'A4'
       });
@@ -140,25 +140,25 @@ router.get(
 
       // University Header
       doc.fontSize(20)
-         .font('Helvetica-Bold')
-         .text('AKILLI KAMPÜS YÖNETİM PLATFORMU', { align: 'center' });
-      
+        .font('Helvetica-Bold')
+        .text('AKILLI KAMPÜS YÖNETİM PLATFORMU', { align: 'center' });
+
       doc.moveDown(0.5);
       doc.fontSize(14)
-         .font('Helvetica')
-         .text('ACADEMIC TRANSCRIPT', { align: 'center' });
-      
+        .font('Helvetica')
+        .text('ACADEMIC TRANSCRIPT', { align: 'center' });
+
       doc.moveDown(1);
 
       // Student Information
       doc.fontSize(12)
-         .font('Helvetica-Bold')
-         .text('Student Information', { underline: true });
-      
+        .font('Helvetica-Bold')
+        .text('Student Information', { underline: true });
+
       doc.moveDown(0.3);
       doc.font('Helvetica')
-         .fontSize(10)
-         .text(`Name: ${user.firstName} ${user.lastName}`, { indent: 20 });
+        .fontSize(10)
+        .text(`Name: ${user.firstName} ${user.lastName}`, { indent: 20 });
       doc.text(`Student Number: ${user.studentProfile?.studentNumber || 'N/A'}`, { indent: 20 });
       doc.text(`Email: ${user.email}`, { indent: 20 });
       doc.text(`Department: ${user.studentProfile?.department?.name || 'N/A'}`, { indent: 20 });
@@ -169,9 +169,9 @@ router.get(
 
       // Transcript Table Header
       doc.fontSize(12)
-         .font('Helvetica-Bold')
-         .text('Academic Record', { underline: true });
-      
+        .font('Helvetica-Bold')
+        .text('Academic Record', { underline: true });
+
       doc.moveDown(0.5);
 
       // Table headers
@@ -188,8 +188,8 @@ router.get(
       };
 
       doc.fontSize(9)
-         .font('Helvetica-Bold');
-      
+        .font('Helvetica-Bold');
+
       let x = leftMargin;
       doc.text('Code', x, tableTop);
       x += colWidths.code;
@@ -207,24 +207,18 @@ router.get(
 
       // Draw line under header
       doc.moveTo(leftMargin, tableTop + 15)
-         .lineTo(leftMargin + Object.values(colWidths).reduce((a, b) => a + b, 0), tableTop + 15)
-         .stroke();
+        .lineTo(leftMargin + Object.values(colWidths).reduce((a, b) => a + b, 0), tableTop + 15)
+        .stroke();
 
       doc.moveDown(0.3);
 
       // Transcript rows
-<<<<<<< HEAD
       doc.font('Helvetica')
-         .fontSize(9);
-      
-=======
-      doc.font('Roboto')
         .fontSize(9);
 
->>>>>>> parent of e77cc4a (asda)
       transcript.transcript.forEach((course, index) => {
         const rowY = doc.y;
-        
+
         // Check if we need a new page
         if (rowY > 700) {
           doc.addPage();
@@ -252,8 +246,8 @@ router.get(
       // Footer
       doc.moveDown(1);
       doc.fontSize(8)
-         .font('Helvetica')
-         .text('This transcript is generated electronically and is valid without signature.', { align: 'center' });
+        .font('Helvetica')
+        .text('This transcript is generated electronically and is valid without signature.', { align: 'center' });
       doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { align: 'center' });
 
       // Finalize PDF
@@ -308,8 +302,8 @@ router.post(
 
       // Calculate final grade if both midterm and final are provided
       let finalNumericGrade = null;
-      if (midtermGrade !== null && midtermGrade !== undefined && 
-          finalGrade !== null && finalGrade !== undefined) {
+      if (midtermGrade !== null && midtermGrade !== undefined &&
+        finalGrade !== null && finalGrade !== undefined) {
         finalNumericGrade = gradeCalculationService.calculateFinalGrade(
           midtermGrade,
           finalGrade
@@ -345,10 +339,10 @@ router.post(
         const section = await CourseSection.findByPk(enrollment.sectionId, {
           include: [{ model: Course, as: 'course', attributes: ['code', 'name'] }]
         });
-        
+
         const courseName = section?.course?.name || 'Ders';
         const courseCode = section?.course?.code || '';
-        
+
         let gradeMessage = '';
         if (midtermGrade !== undefined) {
           gradeMessage = `Vize notunuz: ${midtermGrade}`;
