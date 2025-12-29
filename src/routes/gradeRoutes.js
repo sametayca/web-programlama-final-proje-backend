@@ -104,7 +104,6 @@ router.get(
   async (req, res) => {
     try {
       const PDFDocument = require('pdfkit');
-      const path = require('path');
       const studentId = req.user.id;
       const transcript = await gradeCalculationService.generateTranscript(studentId);
       const user = await User.findByPk(studentId, {
@@ -127,25 +126,10 @@ router.get(
       }
 
       // Create PDF document
-      const doc = new PDFDocument({
+      const doc = new PDFDocument({ 
         margin: 50,
         size: 'A4'
       });
-
-      // Register Fonts for Turkish Support
-      const fontRegularPath = path.join(__dirname, '../assets/fonts/Roboto-Regular.ttf');
-      const fontBoldPath = path.join(__dirname, '../assets/fonts/Roboto-Bold.ttf');
-
-      // Check if fonts exist, otherwise fallback (though we downloaded them)
-      const fs = require('fs');
-      if (fs.existsSync(fontRegularPath) && fs.existsSync(fontBoldPath)) {
-        doc.registerFont('Roboto', fontRegularPath);
-        doc.registerFont('Roboto-Bold', fontBoldPath);
-      } else {
-        // Fallback names if file load fails (might still be helvetica but at least won't crash)
-        doc.registerFont('Roboto', 'Helvetica');
-        doc.registerFont('Roboto-Bold', 'Helvetica-Bold');
-      }
 
       // Set response headers
       res.setHeader('Content-Type', 'application/pdf');
@@ -156,25 +140,25 @@ router.get(
 
       // University Header
       doc.fontSize(20)
-        .font('Roboto-Bold')
-        .text('AKILLI KAMPÜS YÖNETİM PLATFORMU', { align: 'center' });
-
+         .font('Helvetica-Bold')
+         .text('AKILLI KAMPÜS YÖNETİM PLATFORMU', { align: 'center' });
+      
       doc.moveDown(0.5);
       doc.fontSize(14)
-        .font('Roboto')
-        .text('ACADEMIC TRANSCRIPT', { align: 'center' });
-
+         .font('Helvetica')
+         .text('ACADEMIC TRANSCRIPT', { align: 'center' });
+      
       doc.moveDown(1);
 
       // Student Information
       doc.fontSize(12)
-        .font('Roboto-Bold')
-        .text('Student Information', { underline: true });
-
+         .font('Helvetica-Bold')
+         .text('Student Information', { underline: true });
+      
       doc.moveDown(0.3);
-      doc.font('Roboto')
-        .fontSize(10)
-        .text(`Name: ${user.firstName} ${user.lastName}`, { indent: 20 });
+      doc.font('Helvetica')
+         .fontSize(10)
+         .text(`Name: ${user.firstName} ${user.lastName}`, { indent: 20 });
       doc.text(`Student Number: ${user.studentProfile?.studentNumber || 'N/A'}`, { indent: 20 });
       doc.text(`Email: ${user.email}`, { indent: 20 });
       doc.text(`Department: ${user.studentProfile?.department?.name || 'N/A'}`, { indent: 20 });
@@ -185,29 +169,27 @@ router.get(
 
       // Transcript Table Header
       doc.fontSize(12)
-        .font('Roboto-Bold')
-        .text('Academic Record', { underline: true });
-
+         .font('Helvetica-Bold')
+         .text('Academic Record', { underline: true });
+      
       doc.moveDown(0.5);
 
       // Table headers
       const tableTop = doc.y;
       const leftMargin = 50;
-      // Total page width ~595. Margins 50+50=100. Printable: 495.
-      // Adjusted widths to fit page:
       const colWidths = {
-        code: 60,
-        name: 180,
-        credits: 40,
-        semester: 60,
-        year: 40,
-        grade: 40,
-        point: 40
+        code: 80,
+        name: 200,
+        credits: 60,
+        semester: 80,
+        year: 60,
+        grade: 60,
+        point: 60
       };
 
       doc.fontSize(9)
-        .font('Roboto-Bold');
-
+         .font('Helvetica-Bold');
+      
       let x = leftMargin;
       doc.text('Code', x, tableTop);
       x += colWidths.code;
@@ -225,18 +207,18 @@ router.get(
 
       // Draw line under header
       doc.moveTo(leftMargin, tableTop + 15)
-        .lineTo(leftMargin + Object.values(colWidths).reduce((a, b) => a + b, 0), tableTop + 15)
-        .stroke();
+         .lineTo(leftMargin + Object.values(colWidths).reduce((a, b) => a + b, 0), tableTop + 15)
+         .stroke();
 
       doc.moveDown(0.3);
 
       // Transcript rows
-      doc.font('Roboto')
-        .fontSize(9);
-
+      doc.font('Helvetica')
+         .fontSize(9);
+      
       transcript.transcript.forEach((course, index) => {
         const rowY = doc.y;
-
+        
         // Check if we need a new page
         if (rowY > 700) {
           doc.addPage();
@@ -263,10 +245,9 @@ router.get(
 
       // Footer
       doc.moveDown(1);
-      doc.moveDown(1);
       doc.fontSize(8)
-        .font('Roboto')
-        .text('This transcript is generated electronically and is valid without signature.', { align: 'center' });
+         .font('Helvetica')
+         .text('This transcript is generated electronically and is valid without signature.', { align: 'center' });
       doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { align: 'center' });
 
       // Finalize PDF
@@ -321,8 +302,8 @@ router.post(
 
       // Calculate final grade if both midterm and final are provided
       let finalNumericGrade = null;
-      if (midtermGrade !== null && midtermGrade !== undefined &&
-        finalGrade !== null && finalGrade !== undefined) {
+      if (midtermGrade !== null && midtermGrade !== undefined && 
+          finalGrade !== null && finalGrade !== undefined) {
         finalNumericGrade = gradeCalculationService.calculateFinalGrade(
           midtermGrade,
           finalGrade
@@ -358,10 +339,10 @@ router.post(
         const section = await CourseSection.findByPk(enrollment.sectionId, {
           include: [{ model: Course, as: 'course', attributes: ['code', 'name'] }]
         });
-
+        
         const courseName = section?.course?.name || 'Ders';
         const courseCode = section?.course?.code || '';
-
+        
         let gradeMessage = '';
         if (midtermGrade !== undefined) {
           gradeMessage = `Vize notunuz: ${midtermGrade}`;
