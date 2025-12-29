@@ -132,26 +132,19 @@ router.get(
         size: 'A4'
       });
 
-      // Font Setup with Robust Fallback
-      let fontRegular = 'Helvetica';
-      let fontBold = 'Helvetica-Bold';
+      // Register Fonts for Turkish Support
+      const fontRegularPath = path.join(__dirname, '../assets/fonts/Roboto-Regular.ttf');
+      const fontBoldPath = path.join(__dirname, '../assets/fonts/Roboto-Bold.ttf');
 
-      try {
-        const fontRegularPath = path.join(__dirname, '../assets/fonts/Roboto-Regular.ttf');
-        const fontBoldPath = path.join(__dirname, '../assets/fonts/Roboto-Bold.ttf');
-        const fs = require('fs');
-
-        if (fs.existsSync(fontRegularPath) && fs.existsSync(fontBoldPath)) {
-          doc.registerFont('Roboto', fontRegularPath);
-          doc.registerFont('Roboto-Bold', fontBoldPath);
-          fontRegular = 'Roboto';
-          fontBold = 'Roboto-Bold';
-        } else {
-          console.warn('Custom fonts not found, using Helvetica');
-        }
-      } catch (fontError) {
-        console.error('Error registering fonts:', fontError);
-        // Continue with Helvetica
+      // Check if fonts exist, otherwise fallback (though we downloaded them)
+      const fs = require('fs');
+      if (fs.existsSync(fontRegularPath) && fs.existsSync(fontBoldPath)) {
+        doc.registerFont('Roboto', fontRegularPath);
+        doc.registerFont('Roboto-Bold', fontBoldPath);
+      } else {
+        // Fallback names if file load fails (might still be helvetica but at least won't crash)
+        doc.registerFont('Roboto', 'Helvetica');
+        doc.registerFont('Roboto-Bold', 'Helvetica-Bold');
       }
 
       // Set response headers
@@ -163,24 +156,23 @@ router.get(
 
       // University Header
       doc.fontSize(20)
-        .font(fontBold)
+        .font('Roboto-Bold')
         .text('AKILLI KAMPÜS YÖNETİM PLATFORMU', { align: 'center' });
 
       doc.moveDown(0.5);
-      doc.moveDown(0.5);
       doc.fontSize(14)
-        .font(fontRegular)
+        .font('Roboto')
         .text('ACADEMIC TRANSCRIPT', { align: 'center' });
 
       doc.moveDown(1);
 
       // Student Information
       doc.fontSize(12)
-        .font(fontBold)
+        .font('Roboto-Bold')
         .text('Student Information', { underline: true });
 
       doc.moveDown(0.3);
-      doc.font(fontRegular)
+      doc.font('Roboto')
         .fontSize(10)
         .text(`Name: ${user.firstName} ${user.lastName}`, { indent: 20 });
       doc.text(`Student Number: ${user.studentProfile?.studentNumber || 'N/A'}`, { indent: 20 });
@@ -193,7 +185,7 @@ router.get(
 
       // Transcript Table Header
       doc.fontSize(12)
-        .font(fontBold)
+        .font('Roboto-Bold')
         .text('Academic Record', { underline: true });
 
       doc.moveDown(0.5);
@@ -214,7 +206,7 @@ router.get(
       };
 
       doc.fontSize(9)
-        .font(fontBold);
+        .font('Roboto-Bold');
 
       let x = leftMargin;
       doc.text('Code', x, tableTop);
@@ -272,9 +264,8 @@ router.get(
       // Footer
       doc.moveDown(1);
       doc.moveDown(1);
-      doc.moveDown(1);
       doc.fontSize(8)
-        .font(fontRegular)
+        .font('Roboto')
         .text('This transcript is generated electronically and is valid without signature.', { align: 'center' });
       doc.text(`Generated on: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { align: 'center' });
 
